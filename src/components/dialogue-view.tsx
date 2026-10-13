@@ -63,7 +63,7 @@ export function DialogueView() {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto w-full max-w-3xl space-y-5 px-6 py-6">
+        <div className="mx-auto w-full max-w-3xl space-y-5 px-3 py-4 lg:px-6 lg:py-6">
           {empty ? (
             <EmptyState
               onPick={(p) => {
@@ -78,8 +78,8 @@ export function DialogueView() {
         </div>
       </div>
 
-      <div className="border-t bg-background/80 backdrop-blur">
-        <div className="mx-auto w-full max-w-3xl space-y-2 px-6 py-3">
+      <div className="border-t bg-background/90 backdrop-blur">
+        <div className="mx-auto w-full max-w-3xl space-y-2 px-3 py-2.5 lg:px-6 lg:py-3">
           <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
             <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
               {realmName ? `对象：${realmName}` : '未建档案'}
@@ -90,18 +90,20 @@ export function DialogueView() {
                 <Button
                   size="xs"
                   variant="ghost"
-                  className="gap-1"
+                  className="gap-1 px-1.5 lg:px-2.5"
                   disabled={streaming}
                   onClick={() => void regenerate()}
+                  aria-label="重答"
                 >
                   <IconWand className="size-3" />
-                  重答
+                  <span className="hidden lg:inline">重答</span>
                 </Button>
                 <Button
                   size="xs"
                   variant="ghost"
-                  className="gap-1"
+                  className="gap-1 px-1.5 lg:px-2.5"
                   disabled={streaming}
+                  aria-label="清空对话"
                   onClick={async () => {
                     const ok = await askConfirm({
                       title: '清空这个对象的全部对话记录？',
@@ -113,35 +115,45 @@ export function DialogueView() {
                   }}
                 >
                   <IconTrash className="size-3" />
-                  清空对话
+                  <span className="hidden lg:inline">清空对话</span>
                 </Button>
               </div>
             )}
           </div>
 
-          <div className="relative rounded-xl border bg-card shadow-xs focus-within:ring-2 focus-within:ring-ring/40">
+          {/*
+            输入区按 M3E 的「大圆角 + 单一容器」做：手机上是一个贴底的胶囊，
+            圆角给到 28px，内部不再套第二层边框，减少视觉噪音。
+          */}
+          <div className="relative rounded-[28px] border bg-card shadow-xs transition-shadow focus-within:ring-2 focus-within:ring-ring/40">
             <Textarea
               ref={ta}
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={onKeyDown}
-              rows={3}
-              placeholder="把事情说清楚就行，不用组织语言。例如：她昨天说“最近有点忙”，然后两天没回我消息，我想知道下一步怎么办。"
-              className="min-h-[76px] resize-none border-0 bg-transparent pr-12 focus-visible:ring-0"
+              rows={1}
+              placeholder="说清楚发生了什么就行，不用组织语言。"
+              className="min-h-[46px] resize-none border-0 bg-transparent py-3 pr-14 pl-4 text-[15px] focus-visible:ring-0 lg:min-h-[76px] lg:text-sm"
             />
             <div className="absolute right-2 bottom-2">
               {streaming ? (
-                <Button size="icon" variant="outline" onClick={stop} title="停止">
+                <Button size="icon" variant="outline" className="rounded-full" onClick={stop} title="停止">
                   <IconPlayerStop className="size-4" />
                 </Button>
               ) : (
-                <Button size="icon" onClick={() => void submit()} disabled={!draft.trim()} title="发送（Enter）">
+                <Button
+                  size="icon"
+                  className="rounded-full"
+                  onClick={() => void submit()}
+                  disabled={!draft.trim()}
+                  title="发送（Enter）"
+                >
                   <IconSend className="size-4" />
                 </Button>
               )}
             </div>
           </div>
-          <p className="text-[11px] text-muted-foreground">
+          <p className="hidden text-[11px] text-muted-foreground lg:block">
             Enter 发送，Shift+Enter 换行。军师不会替你发送任何消息，也不预测对方爱不爱你。
           </p>
         </div>
@@ -153,23 +165,28 @@ export function DialogueView() {
 function EmptyState({ onPick }: { onPick: (prompt: string) => void }) {
   const applyPublicCase = useStudio((s) => s.applyPublicCase)
   return (
-    <div className="space-y-6 pt-8">
+    <div className="flex min-h-[62vh] flex-col justify-center space-y-5 lg:min-h-0 lg:justify-start lg:pt-8">
       <div className="space-y-2 text-center">
-        <h2 className="text-lg font-semibold">先说说发生了什么</h2>
-        <p className="mx-auto max-w-lg text-sm text-muted-foreground">
+        <h2 className="text-[17px] font-semibold sm:text-lg">先说说发生了什么</h2>
+        {/* 手机上只留一句：这段说明很重要，但六行字会把真正的入口挤出屏幕 */}
+        <p className="text-[13px] text-muted-foreground sm:hidden">
+          说的每句话、导入的每段记录都只存在这台电脑上。
+        </p>
+        <p className="mx-auto hidden max-w-lg text-sm text-muted-foreground sm:block">
           这里没有服务器。你说的每句话、导入的每段记录、AI 给你的每个判断，都只存在这台电脑上。
           军师的角色是帮你把事实、推测和未知分开，然后给一个能立刻执行的动作。
         </p>
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-2">
+      <div className="-mx-3 flex gap-2 overflow-x-auto px-3 pb-1 [scrollbar-width:none] sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 sm:pb-0">
         {STARTERS.map((s) => (
           <button
             key={s.label}
             type="button"
             onClick={() => onPick(s.prompt)}
             className={cn(
-              'rounded-xl border bg-card px-3.5 py-3 text-left text-sm transition',
+              'shrink-0 rounded-full border bg-card px-3.5 py-2 text-left text-[13px] whitespace-nowrap transition',
+              'sm:shrink sm:rounded-2xl sm:py-3 sm:text-sm sm:whitespace-normal',
               'hover:border-primary/50 hover:bg-muted/50',
             )}
           >
@@ -178,9 +195,9 @@ function EmptyState({ onPick }: { onPick: (prompt: string) => void }) {
         ))}
       </div>
 
-      <div className="rounded-xl border border-dashed p-4">
-        <p className="mb-2 text-sm font-medium">没有真实材料？先看一个合成案例</p>
-        <p className="mb-3 text-xs text-muted-foreground">
+      <div className="rounded-2xl border border-dashed p-3.5 sm:p-4">
+        <p className="mb-1.5 text-[13px] font-medium sm:mb-2 sm:text-sm">没有真实材料？先看一个合成案例</p>
+        <p className="mb-3 hidden text-xs text-muted-foreground sm:block">
           公开案例是完全合成的关系数据，用来演示「证据 → 指标 → 对话」这条链路怎么跑通。
           它不含任何真实个人信息。
         </p>

@@ -1,4 +1,4 @@
-# Logs
+﻿# Logs
 logs
 *.log
 npm-debug.log*
@@ -58,3 +58,9 @@ android/app/src/main/assets/capacitor.plugins.json
 *.aab
 *.keystore
 *.jks
+# 悬浮窗后端：代码进库，虚拟环境不进（RapidOCR + onnxruntime 两百多 MB，
+# 别人 clone 下来按 overlay/README.md 建一次就行）
+overlay/.venv
+overlay/__pycache__
+**/__pycache__/
+*.pyc

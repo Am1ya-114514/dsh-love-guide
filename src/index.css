@@ -834,3 +834,24 @@
     color: oklch(0.985 0 0);
   }
 }
+
+/* ── M3E 视觉层：只做两件不花钱的事 ──────────────────────────────
+   1) 圆角再大一档（Material 3 Expressive 的「大圆角」特征，已在组件里按
+      28px / 24px / 16px 三档铺开）；
+   2) 按下去有轻微回弹——手机上没有 hover，只有按下这一下反馈。
+   不引入动画库：M3E 的弹簧在 Web 上用 cubic-bezier 近似就够，
+   过冲控制在 5% 以内，像弹簧但不会让文字跟着抖。
+   仅限没有 hover 的设备（触屏），桌面鼠标不套这层，免得点击时内容跳一下。 */
+@media (hover: none) {
+  button,
+  [role='button'],
+  a[data-slot='button'] {
+    transition: transform 180ms cubic-bezier(0.2, 0.9, 0.25, 1.06);
+  }
+
+  button:active,
+  [role='button']:active,
+  a[data-slot='button']:active {
+    transform: scale(0.97);
+  }
+}

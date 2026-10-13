@@ -24,12 +24,12 @@ export function Topbar({ onOpenNav }: { onOpenNav?: () => void }) {
   const meta = TITLES[view]
 
   return (
-    <header className="flex h-14 shrink-0 items-center gap-3 border-b px-4">
+    <header className="flex h-12 shrink-0 items-center gap-2 border-b px-3 lg:h-14 lg:gap-3 lg:px-4">
       {onOpenNav && (
         <Button
           variant="ghost"
           size="icon"
-          className="-ml-2 lg:hidden"
+          className="-ml-1.5 shrink-0 lg:hidden"
           onClick={onOpenNav}
           aria-label="打开导航"
         >
@@ -38,16 +38,17 @@ export function Topbar({ onOpenNav }: { onOpenNav?: () => void }) {
       )}
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <h1 className="truncate text-sm font-semibold">{meta.title}</h1>
+          <h1 className="truncate text-[15px] font-semibold lg:text-sm">{meta.title}</h1>
           {realm && (
-            <Badge variant="secondary" className="h-5 max-w-32 gap-1 px-1.5 text-[10px]">
+            <Badge variant="secondary" className="h-5 max-w-28 gap-1 px-1.5 text-[10px] lg:max-w-32">
               <IconSparkles className="size-3" />
               {realm.name}
               {realm.temporary && ' · 临时'}
             </Badge>
           )}
         </div>
-        <p className="truncate text-[11px] text-muted-foreground">{meta.sub}</p>
+        {/* 手机上不重复副标题：一行标题 + 汉堡就够，多一行字只是把内容往下挤 */}
+        <p className="hidden truncate text-[11px] text-muted-foreground lg:block">{meta.sub}</p>
       </div>
 
       {realm && view !== 'settings' && (
@@ -75,9 +76,15 @@ export function Topbar({ onOpenNav }: { onOpenNav?: () => void }) {
       </div>
 
       {realm && view !== 'settings' && (
-        <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setEditing(true)}>
+        <Button
+          variant="outline"
+          size="sm"
+          className="shrink-0 gap-1.5 px-2 lg:px-3"
+          onClick={() => setEditing(true)}
+          aria-label="档案"
+        >
           <IconId className="size-3.5" />
-          档案
+          <span className="hidden lg:inline">档案</span>
         </Button>
       )}
 

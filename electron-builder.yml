@@ -1,4 +1,4 @@
-# dsh-Love Guide —— Windows 安装包（NSIS）
+﻿# dsh-Love Guide —— Windows 安装包（NSIS）
 #
 # 单独一个配置文件，不写进 package.json：这份配置只服务于安装包，
 # 和开发/构建脚本混在一起会让 package.json 难读。
@@ -33,6 +33,18 @@ directories:
 # 前端已经被 Vite 全部打进 dist/，electron/main.cjs 只用 node 内置模块和 electron 自己，
 # 运行时一个第三方包都不需要。不排掉 node_modules 的话，react / echarts 等几十 MB
 # 生产依赖会被一起塞进安装包。
+# 悬浮窗的 Python 后端随包发出去（放在 resources/overlay 下）。
+# **不含 .venv**：RapidOCR + onnxruntime 加起来两百多 MB，塞进安装包会让体积翻三倍。
+# 所以打包版要能跑悬浮窗，得先在这个目录里建一次虚拟环境，见 overlay/README.md。
+extraResources:
+  - from: overlay
+    to: overlay
+    filter:
+      - "**/*"
+      - "!.venv"
+      - "!__pycache__"
+      - "!**/__pycache__/**"
+
 files:
   - dist/**/*
   - electron/**/*

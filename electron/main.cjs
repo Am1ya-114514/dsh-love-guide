@@ -17,15 +17,29 @@
  * 4. **不要终端**。打包出来的是 Windows GUI 子系统程序，双击只有窗口；
  *    进程内不 spawn 任何子进程，所以也不会有黑框闪一下。
  */
-const { app, BrowserWindow, Menu, dialog, shell } = require('electron')
+const { app, BrowserWindow, Menu, dialog, shell, ipcMain, globalShortcut } = require('electron')
 const http = require('node:http')
 const fs = require('node:fs')
 const path = require('node:path')
+const { OverlaySidecar } = require('./sidecar.cjs')
 
 const APP_NAME = 'dsh-Love Guide'
 const HOST = '127.0.0.1'
 const PORT = 41730
 const DEV_URL = process.env.GTJS_DEV_URL || ''
+
+/**
+ * 悬浮窗快捷键。
+ *
+ * 选 Ctrl+Shift+L 是因为它和 QQ/微信/浏览器都不冲突；用 Alt+` 那种
+ * 「一个键最小化和展开」的写法虽然更贴需求，但 Alt 组合在中文输入法下
+ * 经常被截走，实际用起来会时灵时不灵。
+ */
+const OVERLAY_HOTKEY = process.env.GTJS_OVERLAY_HOTKEY || 'Control+Shift+L'
+/** 收起后的尺寸：只留一条标题栏，贴在屏幕边上不挡聊天。 */
+const OVERLAY_COLLAPSED = { width: 340, height: 46 }
+const OVERLAY_EXPANDED = { width: 420, height: 620 }
+
 
 /** 数据目录名。改过名，老目录会在启动时自动搬一次（见 resolveDataDir）。 */
 const DATA_DIR_NAME = 'dsh-love-guide-data'
@@ -238,6 +252,136 @@ async function createWindow() {
   return win
 }
 
+/* ------------------------------------------------------------------ *
+ * 悬浮窗：盯一个聊天窗口，把「对方在说什么 + 我可以怎么回」浮在最上面
+ * ------------------------------------------------------------------ */
+
+let overlayWin = null
+let sidecar = null
+let overlayCollapsed = false
+
+function overlayLog(line) {
+  console.log(`[main] ${line}`)
+  if (overlayWin && !overlayWin.isDestroyed()) {
+    overlayWin.webContents.send('overlay:event', { event: 'log', line })
+  }
+}
+
+async function createOverlay() {
+  if (overlayWin && !overlayWin.isDestroyed()) {
+    overlayWin.show()
+    overlayWin.focus()
+    return overlayWin
+  }
+
+  const win = new BrowserWindow({
+    ...OVERLAY_EXPANDED,
+    minWidth: 320,
+    minHeight: 46,
+    show: false,
+    frame: false, // 无边框：收起时就是一条窄条，有系统边框会很难看
+    resizable: true,
+    maximizable: false,
+    minimizable: false,
+    fullscreenable: false,
+    skipTaskbar: true, // 它是个辅助窗，不该在任务栏占一格
+    alwaysOnTop: true,
+    backgroundColor: '#0c0a09',
+    title: `${APP_NAME} — 悬浮窗`,
+    icon: packagedIcon(),
+    webPreferences: {
+      preload: path.join(__dirname, 'overlay-preload.cjs'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false, // preload 里用了 require('electron')，sandbox 下拿不到 ipcRenderer
+      spellcheck: false,
+    },
+  })
+
+  // 'screen-saver' 这一级才能压住全屏视频和部分游戏窗口；
+  // 默认的 'floating' 会被 QQ 之类的普通窗口盖住。
+  win.setAlwaysOnTop(true, 'screen-saver')
+  win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+
+  win.once('ready-to-show', () => win.show())
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:/i.test(url)) void shell.openExternal(url)
+    return { action: 'deny' }
+  })
+
+  await win.loadURL(`${DEV_URL || `http://${HOST}:${PORT}`}/overlay.html`)
+  overlayWin = win
+  win.on('closed', () => {
+    overlayWin = null
+  })
+  return win
+}
+
+/** 收起 / 展开。收起态刻意保留标题栏，不然用户找不到怎么展开回来。 */
+function setOverlayCollapsed(collapsed) {
+  overlayCollapsed = !!collapsed
+  if (!overlayWin || overlayWin.isDestroyed()) return overlayCollapsed
+  const b = overlayWin.getBounds()
+  const target = collapsed ? OVERLAY_COLLAPSED : OVERLAY_EXPANDED
+  overlayWin.setBounds({ x: b.x, y: b.y, width: target.width, height: target.height })
+  overlayWin.setResizable(!collapsed)
+  return overlayCollapsed
+}
+
+function registerOverlayIpc() {
+  ipcMain.handle('overlay:status', () => ({
+    ...sidecar.describe(),
+    collapsed: overlayCollapsed,
+    hotkey: OVERLAY_HOTKEY,
+  }))
+
+  ipcMain.handle('overlay:hotkey', () => OVERLAY_HOTKEY)
+
+  ipcMain.handle('overlay:list-windows', async () => {
+    const res = await sidecar.call('list_windows', {}, 15000)
+    return res.windows || []
+  })
+
+  ipcMain.handle('overlay:read', async (_e, { hwnd, max }) => {
+    const res = await sidecar.call('read', { hwnd, max }, 90000)
+    return res
+  })
+
+  ipcMain.handle('overlay:watch', async (_e, { hwnd, interval }) => {
+    const res = await sidecar.call('watch_start', { hwnd, interval }, 15000)
+    return res
+  })
+
+  ipcMain.handle('overlay:unwatch', async () => sidecar.call('watch_stop', {}, 8000))
+
+  ipcMain.handle('overlay:inject', async (_e, { hwnd, text }) => {
+    const res = await sidecar.call('inject', { hwnd, text }, 20000)
+    return res
+  })
+
+  ipcMain.handle('overlay:set-collapsed', (_e, { collapsed }) => setOverlayCollapsed(collapsed))
+
+  ipcMain.handle('overlay:hide', () => {
+    if (overlayWin && !overlayWin.isDestroyed()) overlayWin.hide()
+    return true
+  })
+}
+
+function startSidecar() {
+  sidecar = new OverlaySidecar(app, overlayLog)
+  sidecar.on('event', (msg) => {
+    if (overlayWin && !overlayWin.isDestroyed()) {
+      overlayWin.webContents.send('overlay:event', msg)
+    }
+  })
+  sidecar.on('unavailable', (info) => {
+    if (overlayWin && !overlayWin.isDestroyed()) {
+      overlayWin.webContents.send('overlay:event', { event: 'unavailable', ...info })
+    }
+  })
+  sidecar.start()
+}
+
 // 单实例：第二次启动只把已有窗口叫到前面，不去抢端口。
 // 注意顺序：setName / setPath 必须在 requestSingleInstanceLock 之前——
 // 单实例锁会在 userData 里落一个 lockfile，先锁的话这个文件就跑到
@@ -249,17 +393,40 @@ if (!app.requestSingleInstanceLock()) {
   app.exit(0)
 } else {
   app.on('second-instance', () => {
-    const win = BrowserWindow.getAllWindows()[0]
+    const win = BrowserWindow.getAllWindows().find((w) => w !== overlayWin)
     if (win) {
       if (win.isMinimized()) win.restore()
       win.focus()
     }
   })
 
+  // 悬浮窗开着时「关掉主窗口」不该结束整个程序，
+  // 否则用户会以为点错了、实际把自己的浮动工具一起关了。
   app.on('window-all-closed', () => app.quit())
+
+  app.on('will-quit', () => {
+    globalShortcut.unregisterAll()
+    if (sidecar) sidecar.stop()
+  })
 
   app.whenReady().then(async () => {
     if (!DEV_URL) await startServer()
     await createWindow()
+    startSidecar()
+    registerOverlayIpc()
+
+    // 快捷键是「一件事的两个动作」：没开就开，开了就收起/展开。
+    const ok = globalShortcut.register(OVERLAY_HOTKEY, () => {
+      if (!overlayWin || overlayWin.isDestroyed()) {
+        void createOverlay()
+        return
+      }
+      if (!overlayWin.isVisible()) {
+        overlayWin.show()
+        return
+      }
+      setOverlayCollapsed(!overlayCollapsed)
+    })
+    if (!ok) overlayLog(`快捷键 ${OVERLAY_HOTKEY} 注册失败（可能被别的程序占了）`)
   })
 }

@@ -53,6 +53,14 @@ export default defineConfig({
   build: {
     // ECharts 单独成块后首屏已经轻了；这个阈值只是用来压掉无意义的告警。
     chunkSizeWarningLimit: 800,
+    rollupOptions: {
+      input: {
+        // 悬浮窗单独一个入口。它刻意不共享主程序的 bundle：
+        // 悬浮窗要秒开、要能独立崩掉重开，而且它不需要 ECharts / Dexie 那些重家伙。
+        main: path.resolve(import.meta.dirname, 'index.html'),
+        overlay: path.resolve(import.meta.dirname, 'overlay.html'),
+      },
+    },
   },
   server: {
     // 本程序只在本机使用；固定端口，便于把 http://127.0.0.1:5273 填进各 AI 服务商的
