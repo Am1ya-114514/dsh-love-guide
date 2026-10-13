@@ -345,7 +345,6 @@ function registerOverlayIpc() {
         model: String(payload?.model ?? ''),
         apiKey: String(payload?.apiKey ?? ''),
         temperature: Number(payload?.temperature ?? 0.6),
-        guardMode: payload?.guardMode === 'research' ? 'research' : 'general',
         updatedAt: new Date().toISOString(),
       }
       // 先写临时文件再 rename，避免另一个进程读到写了一半的 JSON
@@ -422,7 +421,7 @@ function registerOverlayIpc() {
 }
 
 function startSidecar() {
-  sidecar = new OverlaySidecar(app, overlayLog)
+  sidecar = new OverlaySidecar(app, overlayLog, resolveDataDir())
   sidecar.on('event', (msg) => {
     if (overlayWin && !overlayWin.isDestroyed()) {
       overlayWin.webContents.send('overlay:event', msg)

@@ -49,7 +49,7 @@ function resolvePython(overlayDir) {
 }
 
 class OverlaySidecar extends EventEmitter {
-  constructor(app, log) {
+  constructor(app, log, dataDir) {
     super()
     this.app = app
     this.log = log || (() => {})
@@ -59,6 +59,10 @@ class OverlaySidecar extends EventEmitter {
     this.buf = ''
     this.dir = resolveOverlayDir(app)
     this.python = resolvePython(this.dir)
+    // 后端要读数据目录里的 model.json（模型连接由渲染进程经 ai:sync 写在那里）。
+    // 打包后 GTJS_DATA_DIR 并不在 process.env 里——那是我们自己的约定，不是系统的，
+    // 所以必须由主进程算出真实路径显式传进来，不能指望子进程自己猜。
+    this.dataDir = dataDir || process.env.GTJS_DATA_DIR || ''
     this.ready = false
   }
 
@@ -79,7 +83,12 @@ class OverlaySidecar extends EventEmitter {
       cwd: this.dir,
       // 后端里所有中文输出都是 UTF-8；不指定的话 Windows 下会按 GBK 解，
       // 报错信息会变成乱码，排查时非常难受。
-      env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUNBUFFERED: '1' },
+      env: {
+        ...process.env,
+        PYTHONIOENCODING: 'utf-8',
+        PYTHONUNBUFFERED: '1',
+        ...(this.dataDir ? { GTJS_DATA_DIR: this.dataDir } : {}),
+      },
       windowsHide: true,
       stdio: ['pipe', 'pipe', 'pipe'],
     })
