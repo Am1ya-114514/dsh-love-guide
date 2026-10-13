@@ -5,7 +5,6 @@ import {
   IconMessages,
   IconPlus,
   IconSettings,
-  IconSparkles,
   IconArchive,
   IconArchiveOff,
   IconTrash,
@@ -13,6 +12,7 @@ import {
   IconAdjustments,
   IconDeviceDesktopAnalytics,
 } from '@tabler/icons-react'
+import brand from '#/assets/brand.png'
 import { Button } from '#/components/ui/button'
 import { Badge } from '#/components/ui/badge'
 import {
@@ -100,11 +100,14 @@ export function AppSidebar() {
   return (
     <aside className="flex h-full w-[268px] shrink-0 flex-col gap-3 border-r bg-sidebar p-3">
       <div className="flex items-center gap-2 px-1 pt-1">
-        <div className="flex size-8 items-center justify-center rounded-lg bg-primary/12 text-primary">
-          <IconSparkles className="size-4.5" />
-        </div>
+        <img
+          src={brand}
+          alt=""
+          aria-hidden
+          className="size-8 shrink-0 rounded-lg object-cover ring-1 ring-border"
+        />
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold">狗头军师工作室</p>
+          <p className="truncate text-sm font-semibold">dsh-Love Guide</p>
           <p className="truncate text-[11px] text-muted-foreground">Evidence → Decision → Observation</p>
         </div>
       </div>

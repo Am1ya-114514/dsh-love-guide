@@ -1,5 +1,5 @@
 /**
- * 狗头军师工作室 —— 桌面外壳。
+ * dsh-Love Guide —— 桌面外壳。
  *
  * 设计要点（都是踩过坑才这么写的）：
  *
@@ -22,16 +22,33 @@ const http = require('node:http')
 const fs = require('node:fs')
 const path = require('node:path')
 
-const APP_NAME = '狗头军师工作室'
+const APP_NAME = 'dsh-Love Guide'
 const HOST = '127.0.0.1'
 const PORT = 41730
 const DEV_URL = process.env.GTJS_DEV_URL || ''
+
+/** 数据目录名。改过名，老目录会在启动时自动搬一次（见 resolveDataDir）。 */
+const DATA_DIR_NAME = 'dsh-love-guide-data'
+const LEGACY_DATA_DIR_NAME = 'goutoujunshi-data'
 
 /** 可移植数据目录：优先环境变量，其次 exe 同级，最后退回系统默认。 */
 function resolveDataDir() {
   if (process.env.GTJS_DATA_DIR) return path.resolve(process.env.GTJS_DATA_DIR)
   if (!app.isPackaged) return path.join(__dirname, '..', '.runtime', 'data')
-  const beside = path.join(path.dirname(app.getPath('exe')), 'goutoujunshi-data')
+  const beside = path.join(path.dirname(app.getPath('exe')), DATA_DIR_NAME)
+  const legacy = path.join(path.dirname(app.getPath('exe')), LEGACY_DATA_DIR_NAME)
+
+  // 这个程序以前叫「狗头军师工作室」，数据目录也跟着叫 goutoujunshi-data。
+  // 改名之后不能把老用户的档案丢在旧目录里，所以启动时先搬一次。
+  if (!fs.existsSync(beside) && fs.existsSync(legacy)) {
+    try {
+      fs.renameSync(legacy, beside)
+    } catch {
+      // 搬不动（比如旧目录被占用）就继续用旧目录，宁可不改名也不能丢数据。
+      return legacy
+    }
+  }
+
   try {
     fs.mkdirSync(beside, { recursive: true })
     fs.accessSync(beside, fs.constants.W_OK)

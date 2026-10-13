@@ -18,8 +18,11 @@ import { fileURLToPath } from 'node:url'
 const HERE = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(HERE, '..')
 const STAGE = resolve(ROOT, '.runtime', 'app')
-const OUT = process.env.GTJS_APP_OUT ? resolve(process.env.GTJS_APP_OUT) : resolve(ROOT, '..', '..', '狗头军师工作室')
-const APP_NAME = 'goutoujunshi-studio'
+const OUT = process.env.GTJS_APP_OUT ? resolve(process.env.GTJS_APP_OUT) : resolve(ROOT, '..', '..', 'dsh-Love-Guide')
+const APP_NAME = 'dsh-love-guide'
+// 用户的档案都在 exe 同级的这个目录里。重新打包会整目录覆盖 OUT，
+// 所以每次先把它们挪到一边、打完再放回去——否则升级一次就丢一次数据。
+const DATA_DIR_NAMES = ['dsh-love-guide-data', 'goutoujunshi-data']
 const keepStage = process.argv.includes('--keep')
 
 // electron-packager 会把一份完整的 Electron（约 400MB）解压到 os.tmpdir()，
@@ -64,7 +67,7 @@ function stage() {
     JSON.stringify(
       {
         name: APP_NAME,
-        productName: '狗头军师工作室',
+        productName: 'dsh-Love Guide',
         version: pkg.version,
         description: '把关系决策方法论做成独立可运行的本地程序',
         main: 'electron/main.cjs',
@@ -108,9 +111,9 @@ async function packOnce() {
     // 图标单独放 resources/ 下，不进 asar
     extraResource: [join(STAGE, 'build', 'icon.ico')],
     win32metadata: {
-      CompanyName: 'goutoujunshi-studio',
-      FileDescription: '狗头军师工作室 —— 关系决策实验室',
-      ProductName: '狗头军师工作室',
+      CompanyName: 'dsh-Love Guide',
+      FileDescription: 'dsh-Love Guide —— 关系决策实验室',
+      ProductName: 'dsh-Love Guide',
       OriginalFilename: `${APP_NAME}.exe`,
       InternalName: APP_NAME,
     },
@@ -174,6 +177,35 @@ async function renameWithRetry(from, to) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
+/** 把 OUT 里的用户数据目录挪到暂存区，返回挪过哪些。 */
+function stashDataDirs() {
+  const stash = resolve(ROOT, '.runtime', 'data-stash')
+  rmSync(stash, { recursive: true, force: true })
+  const moved = []
+  for (const name of DATA_DIR_NAMES) {
+    const from = join(OUT, name)
+    if (!existsSync(from)) continue
+    mkdirSync(stash, { recursive: true })
+    renameSync(from, join(stash, name))
+    moved.push(name)
+    console.log(`[pack] 先把 ${name} 挪出来，打完再放回去`)
+  }
+  return moved
+}
+
+/** 把暂存的用户数据放回 OUT。 */
+function restoreDataDirs(moved) {
+  if (moved.length === 0) return
+  const stash = resolve(ROOT, '.runtime', 'data-stash')
+  for (const name of moved) {
+    const to = join(OUT, name)
+    rmSync(to, { recursive: true, force: true })
+    renameSync(join(stash, name), to)
+    console.log(`[pack] 已放回 ${name}`)
+  }
+  rmSync(stash, { recursive: true, force: true })
+}
+
 async function main() {
   stage()
   console.log(`[pack] 临时目录：${TMP}`)
@@ -209,12 +241,14 @@ async function main() {
   // 搬到用户要的位置。产物直接铺在 OUT 下（不再套一层 xxx-win32-x64），
   // 这样双击的那个 exe 就在文件夹第一层，找起来不绕。
   const finalDir = OUT
+  const stashed = stashDataDirs()
   if (resolve(exeDir) !== resolve(finalDir)) {
     if (existsSync(finalDir)) rmSync(finalDir, { recursive: true, force: true })
     mkdirSync(OUT, { recursive: true })
     console.log(`[pack] 搬到输出目录……`)
     await renameWithRetry(exeDir, finalDir)
   }
+  restoreDataDirs(stashed)
 
   console.log(`\n[pack] 完成：${finalDir}`)
   console.log(`[pack] 可执行文件：${join(finalDir, `${APP_NAME}.exe`)}`)

@@ -13,7 +13,7 @@
 import { EVIDENCE_TIER_DESC, EVIDENCE_TIER_LABEL } from './types'
 import type { Evidence, EvidenceTier, Realm } from './types'
 
-export const CORE_PERSONA = `你是「狗头军师工作室」里的关系决策助手。你不是真人，也不替用户做决定。
+export const CORE_PERSONA = `你是「dsh-Love Guide」里的关系决策助手。你不是真人，也不替用户做决定。
 
 你的工作方式固定为五步，每一步都要在回答里明确分节：
 1. 【承接】先用一两句人话接住用户的情绪，不评判她的选择。

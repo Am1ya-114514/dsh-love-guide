@@ -9,9 +9,10 @@ import {
 } from '@tabler/icons-react'
 import { Badge } from '#/components/ui/badge'
 import { Card } from '#/components/ui/card'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '#/components/ui/dialog'
 import { Input } from '#/components/ui/input'
 import { Separator } from '#/components/ui/separator'
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '#/components/ui/sheet'
+import { Markdown } from '#/components/markdown'
 import {
   KNOWLEDGE_DOCS,
   KNOWLEDGE_META,
@@ -168,46 +169,68 @@ export function KnowledgeView() {
         </Card>
       </div>
 
-      <Sheet open={Boolean(openDoc)} onOpenChange={(v) => !v && setOpenDoc(null)}>
-        <SheetContent className="w-full overflow-y-auto sm:max-w-2xl">
+      <Dialog open={Boolean(openDoc)} onOpenChange={(v) => !v && setOpenDoc(null)}>
+        <DialogContent className="flex max-h-[88vh] w-[min(54rem,94vw)] flex-col gap-0 overflow-hidden p-0 sm:max-w-none">
           {openDoc && (
             <>
-              <SheetHeader>
-                <SheetTitle className="pr-8">{openDoc.title}</SheetTitle>
-                <SheetDescription>
-                  references/{openDoc.kind}/{openDoc.file}
-                  {openDoc.reviewDate && ` · 复核日期 ${openDoc.reviewDate}`} · {formatBytes(openDoc.bytes)}
-                </SheetDescription>
-              </SheetHeader>
-              <div className="mt-4 px-4 pb-8">
-                {openDoc.links.length > 0 && (
-                  <div className="mb-4 rounded-lg border p-3">
-                    <p className="mb-1.5 text-[11px] font-medium text-muted-foreground">
-                      文中引用的外部来源（未经本程序独立核实，引用前请自行复核）
-                    </p>
-                    <ul className="space-y-1">
-                      {openDoc.links.slice(0, 12).map((l) => (
-                        <li key={l}>
-                          <a
-                            href={l}
-                            target="_blank"
-                            rel="noreferrer noopener"
-                            className="inline-flex items-center gap-1 text-[11px] break-all text-primary hover:underline"
-                          >
-                            <IconExternalLink className="size-3 shrink-0" />
-                            {l.length > 90 ? `${l.slice(0, 90)}…` : l}
-                          </a>
-                        </li>
-                      ))}
-                    </ul>
+              <DialogHeader className="gap-1.5 border-b px-6 py-4 pr-14">
+                <DialogTitle className="text-[17px] leading-snug">{openDoc.title}</DialogTitle>
+                <DialogDescription className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[11px]">
+                  <span>
+                    references/{openDoc.kind}/{openDoc.file}
+                  </span>
+                  {openDoc.reviewDate && <span>· 复核日期 {openDoc.reviewDate}</span>}
+                  <span>· {formatBytes(openDoc.bytes)}</span>
+                  {openDoc.style === 'mindmap' && <span>· 大纲体</span>}
+                </DialogDescription>
+              </DialogHeader>
+
+              {/* 正文限宽：中文一行 40 个字符左右最好读，全程横跨 860px 时眼睛找不到下一行。 */}
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-5">
+                <div className="mx-auto max-w-[40rem]">
+                  {openDoc.links.length > 0 && (
+                    <div className="mb-5 rounded-lg border bg-muted/30 p-3.5">
+                      <p className="mb-2 text-[11px] font-medium text-muted-foreground">
+                        文中引用的外部来源（未经本程序独立核实，引用前请自行复核）
+                      </p>
+                      <ul className="space-y-1.5">
+                        {openDoc.links.slice(0, 12).map((l) => (
+                          <li key={l}>
+                            <a
+                              href={l}
+                              target="_blank"
+                              rel="noreferrer noopener"
+                              className="inline-flex items-start gap-1.5 text-[11px] break-all text-primary hover:underline"
+                            >
+                              <IconExternalLink className="mt-0.5 size-3 shrink-0" />
+                              <span>{l.length > 90 ? `${l.slice(0, 90)}…` : l}</span>
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  <Markdown
+                    text={openDoc.text}
+                    variant="comfortable"
+                    dropTitle={openDoc.title}
+                    className="text-foreground/90"
+                  />
+
+                  <div className="mt-8 flex items-center gap-2 border-t pt-4 text-[11px] text-muted-foreground">
+                    <IconBook2 className="size-3.5 shrink-0" />
+                    <span>
+                      出自上游参考资料，共 {KNOWLEDGE_META.counts.knowledge + KNOWLEDGE_META.counts.practical} 篇。
+                      这里是原文呈现，不是本程序的结论。
+                    </span>
                   </div>
-                )}
-                <pre className="text-xs leading-relaxed whitespace-pre-wrap">{openDoc.text}</pre>
+                </div>
               </div>
             </>
           )}
-        </SheetContent>
-      </Sheet>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

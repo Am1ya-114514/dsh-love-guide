@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="狗头军师工作室">
-  <rect width="64" height="64" rx="15" fill="#0c0a09" />
-  <path fill="#f0b865" d="M18.6 13.1 11.9 31.6l14.6-6.1z" />
-  <path fill="#f0b865" d="M45.4 13.1 52.1 31.6l-14.6-6.1z" />
-  <path fill="#f0b865" d="M32 17.9c8.6 0 15.4 6.9 15.4 15.4S40.6 48.7 32 48.7s-15.4-6.9-15.4-15.4S23.4 17.9 32 17.9z" />
-  <circle cx="25.7" cy="31.4" r="2.7" fill="#0c0a09" />
-  <circle cx="38.3" cy="31.4" r="2.7" fill="#0c0a09" />
-  <path fill="#0c0a09" d="M29 39.1h6a3 3 0 0 1-6 0z" />
-</svg>

@@ -54,7 +54,7 @@ export function SettingsView() {
             <h3 className="text-sm font-semibold">这个程序是什么</h3>
           </div>
           <p className="text-xs leading-relaxed text-muted-foreground">
-            「狗头军师工作室」是把上游开源项目{' '}
+            「dsh-Love Guide」是把上游开源项目{' '}
             <a
               className="text-primary hover:underline"
               href="https://github.com/shengjidaguai-china/goutoujunshi"

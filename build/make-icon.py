@@ -1,68 +1,87 @@
-"""把 public/favicon.svg 的狗头标记画成 Windows 图标（.ico + .png）。
+#!/usr/bin/env python3
+"""从 build/icon-source.webp 生成各平台要用的图标。
 
-为什么要单独画一遍：PIL 不能渲染 SVG，而 Electron 在 Windows 上要的是
-多尺寸 .ico。这里按 SVG 里的原始坐标（64×64 视图框）重画，再降采样，
-保证每个尺寸都干净——直接让系统缩放 256px 会糊。
+为什么用脚本而不是直接提交一堆二进制：图标要同时喂给 Electron（.ico，多档尺寸）、
+网页（favicon）、以及界面里的品牌标记。留着源图 + 这个脚本，以后换图只要换源图。
+
+用法：
+    python build/make-icon.py
 """
-from PIL import Image, ImageDraw
 
-DARK = (12, 10, 9, 255)
-GOLD = (240, 184, 101, 255)
-SS = 8  # 超采样倍数：先画 8 倍大再缩，边缘才不会有锯齿
-BASE = 64
+from __future__ import annotations
 
+import sys
+from pathlib import Path
 
-def draw_mark(size: int) -> Image.Image:
-    px = size * SS
-    k = px / BASE
-    img = Image.new("RGBA", (px, px), (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
+try:
+    from PIL import Image
+except ImportError:  # pragma: no cover
+    print("需要 Pillow：python -m pip install pillow", file=sys.stderr)
+    raise SystemExit(1)
 
-    def p(x, y):
-        return (x * k, y * k)
+ROOT = Path(__file__).resolve().parent.parent
+BUILD = ROOT / "build"
+SOURCE = BUILD / "icon-source.webp"
 
-    # 圆角底板
-    d.rounded_rectangle([0, 0, px - 1, px - 1], radius=15 * k, fill=DARK)
-
-    # 两只耳朵（三角形）
-    d.polygon([p(18.6, 13.1), p(11.9, 31.6), p(26.5, 25.5)], fill=GOLD)
-    d.polygon([p(45.4, 13.1), p(52.1, 31.6), p(37.5, 25.5)], fill=GOLD)
-
-    # 头（圆），圆心 (32, 33.3) 半径 15.4
-    cx, cy = p(32, 33.3)
-    d.ellipse([cx - 15.4 * k, cy - 15.4 * k, cx + 15.4 * k, cy + 15.4 * k], fill=GOLD)
-
-    # 眼睛
-    for ex, ey in ((25.7, 31.4), (38.3, 31.4)):
-        x, y = p(ex, ey)
-        d.ellipse([x - 2.7 * k, y - 2.7 * k, x + 2.7 * k, y + 2.7 * k], fill=DARK)
-
-    # 鼻子：以 (32, 39.1) 为圆心、半径 3 的下半圆
-    nx, ny = p(32, 39.1)
-    d.pieslice([nx - 3 * k, ny - 3 * k, nx + 3 * k, ny + 3 * k], start=0, end=180, fill=DARK)
-
-    return img.resize((size, size), Image.Resampling.LANCZOS)
+# .ico 里要有的尺寸。Windows 在标题栏、任务栏、Alt+Tab、桌面大图标时各取所需。
+ICO_SIZES = [256, 128, 64, 48, 32, 24, 16]
 
 
-def main() -> None:
-    import os
+def load_square() -> Image.Image:
+    """读源图并裁成 1:1。
 
-    here = os.path.dirname(os.path.abspath(__file__))
-    out_png = os.path.join(here, "icon.png")
-    out_ico = os.path.join(here, "icon.ico")
+    源图基本是正方形，这里只做居中裁切以保证严格 1:1，不做拉伸变形。
+    """
+    img = Image.open(SOURCE).convert("RGBA")
+    w, h = img.size
+    side = min(w, h)
+    left = (w - side) // 2
+    top = (h - side) // 2
+    return img.crop((left, top, left + side, top + side))
 
-    master = draw_mark(512)
-    master.save(out_png, format="PNG")
 
-    sizes = [16, 24, 32, 48, 64, 128, 256]
-    frames = [draw_mark(s) for s in sizes]
-    frames[-1].save(out_ico, format="ICO", sizes=[(s, s) for s in sizes])
+def main() -> int:
+    if not SOURCE.exists():
+        print(f"找不到源图：{SOURCE}", file=sys.stderr)
+        return 1
 
-    print(f"[icon] {out_png} 512x512")
-    print(f"[icon] {out_ico} sizes={sizes}")
-    for s in sizes:
-        print(f"[icon]   {s}x{s} ok")
+    src = load_square()
+    print(f"源图 {Image.open(SOURCE).size} -> 裁成 {src.size}")
+
+    # 主图（512）：Electron 在打包时会拿它做部分平台的图标。
+    icon_png = BUILD / "icon.png"
+    src.resize((512, 512), Image.LANCZOS).save(icon_png, "PNG", optimize=True)
+    print(f"写出 {icon_png.relative_to(ROOT)}  512x512")
+
+    # .ico：把每一档都按目标尺寸重新采样，比让系统缩放一张大图清楚得多。
+    icon_ico = BUILD / "icon.ico"
+    src.resize((256, 256), Image.LANCZOS).save(
+        icon_ico,
+        format="ICO",
+        sizes=[(s, s) for s in ICO_SIZES],
+    )
+    print(f"写出 {icon_ico.relative_to(ROOT)}  含 {', '.join(str(s) for s in ICO_SIZES)}")
+
+    # 网页 favicon 与 iOS/macOS 加到桌面时的图标。
+    public = ROOT / "public"
+    public.mkdir(exist_ok=True)
+    fav = public / "favicon.png"
+    src.resize((64, 64), Image.LANCZOS).save(fav, "PNG", optimize=True)
+    print(f"写出 {fav.relative_to(ROOT)}  64x64")
+
+    touch = public / "apple-touch-icon.png"
+    src.resize((180, 180), Image.LANCZOS).save(touch, "PNG", optimize=True)
+    print(f"写出 {touch.relative_to(ROOT)}  180x180")
+
+    # 界面左上角的品牌标记。用 2 倍图，高 DPI 屏不糊。
+    assets = ROOT / "src" / "assets"
+    assets.mkdir(parents=True, exist_ok=True)
+    brand = assets / "brand.png"
+    src.resize((128, 128), Image.LANCZOS).save(brand, "PNG", optimize=True)
+    print(f"写出 {brand.relative_to(ROOT)}  128x128")
+
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -1,8 +1,8 @@
-# 狗头军师工作室 · goutoujunshi-studio
+# dsh-Love Guide
 
 把 [goutoujunshi](https://github.com/shengjidaguai-china/goutoujunshi) 那套「恋爱决策助手」的方法论，做成一个**能自己跑起来的本地程序**：自带知识库检索、可填任意兼容 OpenAI 协议的 Agent API、把聊天记录画成可推演的 K 线，并为每个对象维护独立的关系档案。
 
-它不是网页版复刻，也不依赖任何后端服务——没有服务器、没有账号、没有遥测，所有数据只留在你这台电脑的浏览器里。
+它有网页版，也有打包好的 Windows 桌面版（双击即开，不弹终端）。它不是网页版复刻，也不依赖任何后端服务——没有服务器、没有账号、没有遥测，所有数据只留在你这台电脑上。
 
 ```
 Evidence → Decision → Observation
@@ -21,6 +21,10 @@ Evidence → Decision → Observation
 | 深色主题 | 关于与数据 |
 | --- | --- |
 | ![深色](docs/screenshots/07-dark.png) | ![设置](docs/screenshots/06-settings.png) |
+
+| 知识库全文（弹窗阅读） | 新建关系档案 |
+| --- | --- |
+| ![知识库阅读](docs/screenshots/09-knowledge-reader.png) | ![建档](docs/screenshots/08-new-realm-dialog.png) |
 
 界面里没有任何 emoji：图标统一用 [@tabler/icons-react](https://tabler.io/icons)，配色走 shadcn 的 oklch 令牌，证据分级另有一套专用语义色（刻意避开红绿，把红绿留给 K 线的涨跌）。
 
@@ -46,7 +50,7 @@ Evidence → Decision → Observation
 | **对话** | 五步回答结构（承接情绪 → 已记录的事实 → 合理推测 → 仍然未知 → 下一步），下一步会渲染成行动卡：动作 + 观察窗口 + 停止条件 + 可直接复制的话术 |
 | **关系进展** | K 线推演图（红涨绿跌、灰=证据不足）、均线、六项指标（相位 / 可判定证据 / 平均完整度 / 距上次证据 / 净额对比 / 互惠）、证据台账（增删改 + 存疑标记） |
 | **聊天记录** | 三步导入：先干跑只报格式与条数（不展示正文）→ 确认说话人映射 → 再入库。支持带时间戳的纯文本、`名字：内容`、尖括号格式与 ChatLab 导出的 JSON。入库后可按日画出双方消息量、发起/回应比例、回复节奏，并让军师基于统计写一份解读 |
-| **知识库** | 检索 43 篇材料、看命中片段与出处、检查材料完整性（数量、编号连续性、空文件） |
+| **知识库** | 检索 43 篇材料、看命中片段与出处、全文以弹窗呈现（表格渲染成表格，大纲还原缩进层次）、检查材料完整性（数量、编号连续性、空文件） |
 | **设置** | 模型连接（7 个预设 + 自定义，可拉取模型列表）、长期记忆开关（明确同意 + 可撤销）、导出/清空本机数据、来源与许可 |
 
 ## 桌面版（Windows，不用装 Node）
@@ -54,18 +58,32 @@ Evidence → Decision → Observation
 已经打包好的成品是一个绿色程序，解压/拷贝到哪台 Windows 机器上都能直接双击运行：
 
 ```
-狗头军师工作室\
-├─ goutoujunshi-studio.exe     ← 双击这个
-├─ goutoujunshi-data\          ← 你的数据（首次运行时自动创建，就在 exe 旁边）
+dsh-Love-Guide\
+├─ dsh-love-guide.exe          ← 双击这个
+├─ dsh-love-guide-data\        ← 你的数据（首次运行时自动创建，就在 exe 旁边）
 ├─ resources\app.asar          ← 前端与主进程代码
+├─ resources\icon.ico          ← 程序图标（换图见下）
 └─ ...（Electron 运行时）
 ```
 
 - **双击就能开，不会弹出黑色终端窗口**（程序是 GUI 子系统，菜单栏也默认隐藏，按 `Alt` 才出现）。
-- **不往 C 盘写东西**：数据库、缓存、窗口大小全部存在 exe 同级的 `goutoujunshi-data\` 里。整个文件夹拷到 U 盘或别的电脑，档案跟着走。
+- **不往 C 盘写东西**：数据库、缓存、窗口大小全部存在 exe 同级的 `dsh-love-guide-data\` 里。整个文件夹拷到 U 盘或别的电脑，档案跟着走。
 - 快捷键：`F12` / `Ctrl+Shift+I` 开发者工具，`F5` 或 `Ctrl+R` 刷新，`Ctrl+0` / `Ctrl+=` / `Ctrl+-` 缩放。
 - 程序只监听 `127.0.0.1:41730`，不对外开端口。
 - 双击任务栏图标不会开出第二个窗口——第二次启动会把已有窗口叫到前面。
+
+> 这个程序以前叫「狗头军师工作室」，数据目录也跟着叫 `goutoujunshi-data\`。改名的版本启动时会把这个旧目录**自动搬一次**到 `dsh-love-guide-data\`；万一没搬动（目录被占用），它会继续用旧目录，不会把档案丢下。
+
+### 换图标
+
+图标是从一张源图生成出来的，不用手改二进制：
+
+```bash
+# 把新图放到 build/icon-source.webp（正方形最好）
+python build/make-icon.py     # 需要 Pillow
+```
+
+一次生成五份：`build/icon.ico`（多档尺寸，给 exe）、`build/icon.png`（512）、`public/favicon.png`、`public/apple-touch-icon.png`、`src/assets/brand.png`（界面左上角那个标记）。
 
 自己从源码打这个包：
 
@@ -74,7 +92,7 @@ pnpm install
 pnpm app:build        # = pnpm build + pnpm run app:pack
 ```
 
-产物默认输出到仓库上两级的 `狗头军师工作室\`，用 `GTJS_APP_OUT` 可以改到别处。打包时 Electron 的 400MB 临时文件与缓存都落在仓库内的 `.runtime\`，不碰系统临时目录。
+产物默认输出到仓库上两级的 `dsh-Love-Guide\`，用 `GTJS_APP_OUT` 可以改到别处。打包时 Electron 的 400MB 临时文件与缓存都落在仓库内的 `.runtime\`，不碰系统临时目录。
 
 > 打包时偶尔会遇到 `EPERM: operation not permitted, rename ...`：刚写完的几百兆文件会被系统短暂握住句柄。`scripts/pack.mjs` 遇到这种情况不会重来（重来要再解压 400MB），而是等一会儿把已经解压好的目录自己搬到位。
 
