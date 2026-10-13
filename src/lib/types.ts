@@ -214,4 +214,11 @@ export interface AiSettings {
   sendRawChat: boolean
   /** 是否把知识库片段发给模型。默认 true。 */
   sendReferences: boolean
+  /** 说话风格。默认 'fatfish'（社区里的「大肥鱼」）。 */
+  persona?: 'fatfish' | 'plain'
+  /**
+   * 这个模型能不能看图。开启后聊天记录导入可以直接吃截图。
+   * 默认不假设能看——猜错的代价是把图片当文本发过去、接口报错或乱答。
+   */
+  vision?: boolean
 }

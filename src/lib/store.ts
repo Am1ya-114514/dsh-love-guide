@@ -6,7 +6,7 @@
  */
 
 import { create } from 'zustand'
-import { AiError, complete, extractJson, streamChat } from './ai'
+import { AiError, complete, extractJson, streamChat, transcribeChatScreenshots } from './ai'
 import * as db from './db'
 import { computeMetrics, computeReciprocity } from './metrics'
 import { buildReferenceBlock, retrieve } from './knowledge'
@@ -54,6 +54,8 @@ export const DEFAULT_AI: AiSettings = {
   maxTokens: 2400,
   sendRawChat: false,
   sendReferences: true,
+  persona: 'fatfish',
+  vision: false,
 }
 
 interface Toast {
@@ -119,6 +121,8 @@ interface StudioState {
   addChatLogs: (rows: Omit<ChatLogMessage, 'id' | 'realmId' | 'createdAt'>[]) => Promise<number>
   deleteImport: (importId: string) => Promise<void>
   analyzeChatLog: (importId?: string) => Promise<void>
+  /** 用视觉模型把聊天截图转成可解析的文本；未开启视觉能力时返回 null。 */
+  transcribeImages: (images: { name: string; dataUrl: string }[]) => Promise<string | null>
 
   applyPublicCase: (caseId: PublicCaseId) => Promise<void>
 }
@@ -512,6 +516,32 @@ export const useStudio = create<StudioState>((set, get) => ({
     set((s) => ({ chatLogs: s.chatLogs.filter((m) => m.importId !== importId) }))
   },
 
+  async transcribeImages(images) {
+    const { ai } = get()
+    if (!ai.apiKey.trim()) {
+      get().toast('warn', '识别图片需要先填入 API Key —— 这一步是让模型看图，不是本机算的。')
+      return null
+    }
+    if (!ai.vision) {
+      get().toast('warn', '当前模型没标成「能看图」。到「模型连接 → 生成参数」里打开，或换一个支持视觉的模型。')
+      return null
+    }
+    try {
+      const text = await transcribeChatScreenshots(ai, images, (done, total) => {
+        if (done < total) get().toast('ok', `已识别 ${done}/${total} 张，继续……`)
+      })
+      if (!text.trim()) {
+        get().toast('warn', '模型没有返回任何文字。')
+        return null
+      }
+      return text
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      get().toast('err', `识别失败：${msg}`)
+      return null
+    }
+  },
+
   async analyzeChatLog(importId) {
     const { ai, activeRealmId, chatLogs } = get()
     if (!activeRealmId) return
@@ -660,6 +690,7 @@ async function runAssistant(
     evidence,
     referenceBlock,
     metricsSummary: renderMetrics(metrics),
+    persona: ai.persona,
   })
 
   const turns: { role: 'system' | 'user' | 'assistant'; content: string }[] = [{ role: 'system', content: system }]

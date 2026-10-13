@@ -13,6 +13,7 @@ import {
   IconDeviceDesktopAnalytics,
 } from '@tabler/icons-react'
 import brand from '#/assets/brand.png'
+import { APP_NAME, APP_TAGLINE } from '#/lib/brand'
 import { Button } from '#/components/ui/button'
 import { Badge } from '#/components/ui/badge'
 import {
@@ -107,8 +108,8 @@ export function AppSidebar() {
           className="size-8 shrink-0 rounded-lg object-cover ring-1 ring-border"
         />
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold">dsh-Love Guide</p>
-          <p className="truncate text-[11px] text-muted-foreground">Evidence → Decision → Observation</p>
+          <p className="truncate text-sm font-semibold">{APP_NAME}</p>
+          <p className="truncate text-[11px] text-muted-foreground">{APP_TAGLINE}</p>
         </div>
       </div>
 

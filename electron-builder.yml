@@ -1,0 +1,78 @@
+# dsh-Love Guide —— Windows 安装包（NSIS）
+#
+# 单独一个配置文件，不写进 package.json：这份配置只服务于安装包，
+# 和开发/构建脚本混在一起会让 package.json 难读。
+#
+# 生成安装包：
+#   pnpm app:icon       # 换图标/品牌图后先跑这个
+#   pnpm app:installer  # 构建前端 + 打安装包
+#
+# 安装界面的设计与主界面是同一套：圆角图标、软件名、浅灰底、
+# 以及一条和强调色一致的短线，全由 build/make-installer-art.py 从同一张源图生成。
+# 两个自定义页面（欢迎页、选择路径后的确认页）在 build/installer.nsh 里。
+
+appId: com.am1ya.dsh-love-guide
+productName: dsh-Love Guide
+copyright: Copyright © 2026 Am1ya-114514
+
+# 直接用 node_modules 里已经解压好的 Electron（安装 electron 时就有了），
+# 不让 electron-builder 再下载并解压一份。两个原因：
+#   一、这台机器上「解压完立刻 rename 一棵几百 MB 的目录树」偶发 EPERM
+#       （@electron/packager 也踩到过同一个坑，见 scripts/pack.mjs 的说明）；
+#       走 unpacked 分支是 copyDir，没有那个 rename。
+#   二、C 盘只剩二十多 GB，不想再落一份缓存。
+electronDist: node_modules/electron/dist
+
+directories:
+  buildResources: build
+  # 输出到项目的 .runtime/ 下（已在 .gitignore 里）。
+  # 不写 C 盘：这台机器 C 盘只剩二十多 GB，而 win-unpacked 解出来有四百多 MB。
+  output: .runtime/installer
+
+# 只打进已经构建好的产物。
+# 前端已经被 Vite 全部打进 dist/，electron/main.cjs 只用 node 内置模块和 electron 自己，
+# 运行时一个第三方包都不需要。不排掉 node_modules 的话，react / echarts 等几十 MB
+# 生产依赖会被一起塞进安装包。
+files:
+  - dist/**/*
+  - electron/**/*
+  - package.json
+  - '!node_modules'
+
+asar: true
+compression: maximum
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: build/icon.ico
+  executableName: dsh-love-guide
+  artifactName: ${productName}-Setup-${version}.${ext}
+
+nsis:
+  oneClick: false # 有向导页面，不是一个「一键装完」的静默安装器
+  perMachine: false # 默认只给当前用户装，装到用户目录，不弹 UAC
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: dsh-Love Guide
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  installerHeaderIcon: build/icon.ico
+  installerHeader: build/installer-header.bmp # 150x57，路径页等页面的头部
+  installerSidebar: build/installer-sidebar.bmp # 164x314，结束页左侧
+  include: build/installer.nsh # 自定义欢迎页 + 确认页
+  # 这两个 key 容易搞混，它们管的是完全不同的东西：
+  #   language 只被拿去做 exe 版本信息里的 VIAddVersionKey /LANG=<id>（NsisTarget.js:385），
+  #     而 NSIS 只接受数字 LCID，写 zh_CN 会让 makensis 直接报
+  #     `VIAddVersionKey: "/LANG=zh_CN" is not a valid language code!`。2052 = 简体中文。
+  #   installerLanguages 才决定安装界面显示哪种语言（接受 zh_CN 这种带地区的写法），
+  #     不写它会按 bundledLanguages 打进几十种语言。
+  language: 2052
+  installerLanguages:
+    - zh_CN
+  # 卸载时不删用户的关系档案：那是用户自己攒的数据，不是程序的一部分。
+  # （这两条数据目录名与 electron/main.cjs 里的 DATA_DIR_NAME / LEGACY_DATA_DIR_NAME 一致。）
+  deleteAppDataOnUninstall: false

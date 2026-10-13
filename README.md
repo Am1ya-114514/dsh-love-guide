@@ -47,9 +47,9 @@ Evidence → Decision → Observation
 
 | 模块 | 做了什么 |
 | --- | --- |
-| **对话** | 五步回答结构（承接情绪 → 已记录的事实 → 合理推测 → 仍然未知 → 下一步），下一步会渲染成行动卡：动作 + 观察窗口 + 停止条件 + 可直接复制的话术 |
+| **对话** | 五步回答结构（承接情绪 → 已记录的事实 → 合理推测 → 仍然未知 → 下一步），下一步会渲染成行动卡：动作 + 观察窗口 + 停止条件 + 可直接复制的话术。默认用「大肥鱼」语气（像熟人聊天，不端 AI 腔），可在设置里切成「稳重的军师」 |
 | **关系进展** | K 线推演图（红涨绿跌、灰=证据不足）、均线、六项指标（相位 / 可判定证据 / 平均完整度 / 距上次证据 / 净额对比 / 互惠）、证据台账（增删改 + 存疑标记） |
-| **聊天记录** | 三步导入：先干跑只报格式与条数（不展示正文）→ 确认说话人映射 → 再入库。支持带时间戳的纯文本、`名字：内容`、尖括号格式与 ChatLab 导出的 JSON。入库后可按日画出双方消息量、发起/回应比例、回复节奏，并让军师基于统计写一份解读 |
+| **聊天记录** | 三步导入：先干跑只报格式与条数（不展示正文）→ 确认说话人映射 → 再入库。支持带时间戳的纯文本、`名字：内容`、尖括号格式与 ChatLab 导出的 JSON；**也可以直接导入聊天截图**，交给你自己填的视觉模型转成文字，再走同一套解析。入库后可按日画出双方消息量、发起/回应比例、回复节奏，并让军师基于统计写一份解读 |
 | **知识库** | 检索 43 篇材料、看命中片段与出处、全文以弹窗呈现（表格渲染成表格，大纲还原缩进层次）、检查材料完整性（数量、编号连续性、空文件） |
 | **设置** | 模型连接（7 个预设 + 自定义，可拉取模型列表）、长期记忆开关（明确同意 + 可撤销）、导出/清空本机数据、来源与许可 |
 
@@ -95,6 +95,27 @@ pnpm app:build        # = pnpm build + pnpm run app:pack
 产物默认输出到仓库上两级的 `dsh-Love-Guide\`，用 `GTJS_APP_OUT` 可以改到别处。打包时 Electron 的 400MB 临时文件与缓存都落在仓库内的 `.runtime\`，不碰系统临时目录。
 
 > 打包时偶尔会遇到 `EPERM: operation not permitted, rename ...`：刚写完的几百兆文件会被系统短暂握住句柄。`scripts/pack.mjs` 遇到这种情况不会重来（重来要再解压 400MB），而是等一会儿把已经解压好的目录自己搬到位。
+
+## Windows 安装包
+
+不想拷文件夹的话，也可以给用户一个标准的 `Setup.exe`：
+
+```bash
+pnpm app:installer      # = pnpm build + node scripts/make-installer.mjs
+```
+
+产物在 `.runtime\installer\dsh-Love Guide-Setup-<版本>.exe`（约 107 MB）。安装界面是定制的，用的是和应用同一套颜色与圆角图标：
+
+| 欢迎页 | 选择安装位置之后 |
+| --- | --- |
+| ![安装包欢迎页](docs/screenshots/10-installer-welcome.png) | ![安装包确认页](docs/screenshots/11-installer-confirm.png) |
+
+- 非一键安装：先选「仅为我 / 为所有用户」，再选安装目录，最后有一页把**真实落地路径**摆出来，并说明数据放在哪、卸载会不会删。
+- 安装完成后可以勾选直接启动；开始菜单与桌面都建快捷方式，名字是 `dsh-Love Guide`。
+- 数据仍然放在**安装目录旁边**的 `dsh-love-guide-data\`，卸载时不会删除。
+- 安装包的界面文案、颜色、控件位置都写在 `build/installer.nsh`，品牌图由 `python build/make-installer-art.py` 从同一张源图生成。
+
+> 注意：NSIS 安装程序每次运行都会先把约 477 MB 的内容解到 `%TEMP%`（也就是系统盘）再往目标目录铺，装完会自行清掉。如果中途取消或强杀进程，`%TEMP%` 里可能留下 `ns****.tmp` 目录，可以手动删。
 
 ## 从源码运行（Web 版）
 
@@ -143,7 +164,7 @@ API Key 只保存在本机浏览器的 localStorage 里，由浏览器直接请�
 
 ## 技术栈
 
-Vite 8 · React 19 · TypeScript 6 · Tailwind v4 · [shadcn/ui](https://ui.shadcn.com)（base preset，组件源码直接进仓库）· [Base UI](https://base-ui.com) · [@tabler/icons-react](https://tabler.io/icons)（界面图标，不用 emoji）· [ECharts 6](https://echarts.apache.org)（按需引入）· Zustand 5 · Dexie 4 · Zod 4 · oxlint · [Electron 44](https://www.electronjs.org)（桌面外壳，仅打包时用到）。
+Vite 8 · React 19 · TypeScript 6 · Tailwind v4 · [shadcn/ui](https://ui.shadcn.com)（base preset，组件源码直接进仓库）· [Base UI](https://base-ui.com) · [@tabler/icons-react](https://tabler.io/icons)（界面图标，不用 emoji）· [ECharts 6](https://echarts.apache.org)（按需引入）· Zustand 5 · Dexie 4 · Zod 4 · oxlint · [Electron 44](https://www.electronjs.org)（桌面外壳，仅打包时用到）· [electron-builder](https://www.electron.build) 26（Windows 安装包，仅打包时用到）。
 
 几个值得说明的取舍：
 
@@ -153,27 +174,36 @@ Vite 8 · React 19 · TypeScript 6 · Tailwind v4 · [shadcn/ui](https://ui.shad
 - **生产构建注入 CSP**（`script-src 'self'`），所以主题系统没有用 next-themes——它靠注入内联脚本防闪烁，会被 CSP 拦掉；这里改成渲染前同步读 localStorage。
 - **桌面版不用 `file://` 加载页面**：`file://` 的 origin 是 `null`，IndexedDB 会直接不可用。改成主进程内起一个只读的 `127.0.0.1:41730` 静态服务（端口固定，因为 IndexedDB 按 origin 隔离，换端口等于换数据库）。
 - **`app.setPath('userData')` 必须排在 `requestSingleInstanceLock()` 前面**：单实例锁会在 userData 里落一个 lockfile，顺序反了它就会在 `%APPDATA%` 留下目录，破坏「不往 C 盘写」。
+- **「大肥鱼」只写在语气层**：提示词里把硬边界（不断言对方心意、不预测成功率、不鼓励操控）标成「优先级高于说话风格」。风格只决定怎么说，不决定能说什么——否则模型会为了「像大肥鱼」而随口替用户下结论，那恰好是这个程序最不能犯的错。
+- **聊天截图先转文字，再走同一套解析**：不给解析器加一条「图片分支」，而是让视觉模型把截图转成与粘贴格式一致的文本，下游的干跑 / 说话人映射 / 指标 / 画图一行都不用改。一次只发一张图，避免结果被 `max_tokens` 截断——截断的中间部分最难发现。
+- **安装界面用 `build/installer.nsh` 手写 nsDialogs 页面**：electron-builder 的 `customWelcomePage` / `customPageAfterChangeDir` 两个钩子插在安装模式页与安装进度页之间，正好是「准备安装、选路径」这一段。注意这个 nsh 被 include 的位置比 `MUI2.nsh` 还早，所以里面**不能用 `!insertmacro MUI_HEADER_TEXT` 之类的 MUI 宏**，只能用 nsDialogs 插件命令加硬编码常量。
+- **装包脚本自己兜 EPERM**：`scripts/make-installer.mjs` 会在失败后扫描缓存与输出目录里卡住的 `*.tmp` 并自己搬正（这台机器上「刚解压完就 rename」会偶发占用），撤不掉就清掉半成品重跑，最多 4 次。
 
 ## 目录结构
 
 ```
 scripts/
   build-knowledge.mjs 把 knowledge/ 下的 43 篇 Markdown 编译成 TS 产物
-  pack.mjs            组一个最小暂存目录并打包成 Windows 桌面程序
+  pack.mjs            组一个最小暂存目录并打包成 Windows 桌面程序（绿色版）
+  make-installer.mjs  打 Windows 安装包，自带 EPERM rename 竞态的自愈重试
 electron/
   main.cjs            主进程：内置静态服务、便携数据目录、窗口状态、单实例
 build/
   make-icon.py        用 Pillow 画狗头图标，生成 icon.ico 与 icon.png
+  make-installer-art.py  从同一张源图生成安装界面用的三张 BMP
+  installer.nsh       安装界面：欢迎页 + 「装到哪」确认页
+electron-builder.yml  安装包配置（NSIS、非一键、可改安装目录、中文界面）
 knowledge/            上游参考资料原文（20 篇核心知识 + 23 篇实用材料，MIT）
 src/
   lib/
     knowledge.ts      确定性中文检索（分词、同义词、打分、摘录）
-    ai.ts             兼容 OpenAI 协议的流式客户端（SSE 手写解析）
+    ai.ts             兼容 OpenAI 协议的流式客户端（SSE 手写解析）+ 截图转写
     metrics.ts        纯函数指标层：K 线聚合、均线、互惠、相位
     chatlog.ts        聊天记录解析（多种格式 → 结构化行 + 说话人建议）
     db.ts             Dexie 表结构
     store.ts          Zustand 全局状态与动作
-    prompt.ts         把上游硬约束写成系统提示词
+    prompt.ts         把上游硬约束写成系统提示词（含「大肥鱼」语气层）
+    brand.ts          应用名与口号，集中一处
     theme-mode.ts     明暗主题（不依赖内联脚本）
   components/         各视图与自建组件
   components/ui/      shadcn/ui 生成后纳入仓库的组件

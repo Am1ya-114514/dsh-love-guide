@@ -11,9 +11,14 @@
 
 import type { AiSettings } from './types'
 
+export type ChatContentPart =
+  | { type: 'text'; text: string }
+  | { type: 'image_url'; image_url: { url: string } }
+
 export interface ChatTurn {
   role: 'system' | 'user' | 'assistant'
-  content: string
+  /** 纯文本，或多模态内容数组（看图任务用）。两种服务商都收。 */
+  content: string | ChatContentPart[]
 }
 
 export class AiError extends Error {
@@ -202,6 +207,70 @@ export async function complete(settings: AiSettings, turns: ChatTurn[], signal?:
   const content = json?.choices?.[0]?.message?.content
   if (typeof content !== 'string') throw new AiError('服务商返回了无法解析的响应。')
   return content
+}
+
+/**
+ * 把聊天截图转成文字时用的提示词。
+ *
+ * 输出格式必须和 chatlog.ts 的解析器对得上（"时间 说话人" 一行、内容跟在后面），
+ * 否则识别完还得让用户手动整理，等于没做。所以格式约束写得非常死。
+ */
+export const VISION_TRANSCRIBE_PROMPT = `你在把一张聊天记录的截图转写成纯文本，供程序解析。
+
+严格按下面的格式输出，不要有任何前言、解释、总结或代码围栏：
+
+YYYY-MM-DD HH:mm 说话人
+消息内容
+YYYY-MM-DD HH:mm 说话人
+消息内容
+
+规则：
+1. 按截图里从上到下的顺序逐条转写，一条消息占「时间说话人」一行 + 内容行。
+2. 说话人用截图里能看到的昵称。看不到昵称时：靠右的（自己发的）写"我"，靠左的写"对方"。
+3. 时间：截图上只有时分就写 HH:mm；有日期才写完整 YYYY-MM-DD；完全看不到时间就省略，
+   写成「说话人: 内容」一行式。
+4. 表情、图片、语音、转账、撤回等非文字消息，写成 [图片]、[语音 12"]、[表情]、[转账 200 元]、
+   [撤回了一条消息] 这样的方括号标记。
+5. 看不清的字用 [看不清] 占位，绝不猜测、绝不补全。
+6. 不要合并连续消息，不要改标点，不要纠正错别字，不要翻译。
+7. 如果这张图不是聊天记录，只回复一行：NOT_A_CHAT_SCREENSHOT`
+
+/** 把模型输出里的代码围栏和寒暄剥掉，只留干净正文。 */
+export function stripTranscription(text: string): string {
+  let t = text.trim()
+  const fenced = t.match(/^```(?:\w+)?\s*\n([\s\S]*?)\n?```$/)
+  if (fenced) t = fenced[1].trim()
+  return t
+}
+
+/**
+ * 逐张把聊天截图转成文字。一张一个请求：
+ * 一次塞多张容易顶到 max_tokens 被截断，而截断的中间部分最难发现。
+ */
+export async function transcribeChatScreenshots(
+  settings: AiSettings,
+  images: { name: string; dataUrl: string }[],
+  onProgress?: (done: number, total: number) => void,
+  signal?: AbortSignal,
+): Promise<string> {
+  const out: string[] = []
+  // 转写是长输出任务，用比聊天更大的上限，否则一张长截图会被拦腰截断。
+  const visionSettings: AiSettings = { ...settings, maxTokens: Math.max(settings.maxTokens, 8000) }
+  for (let i = 0; i < images.length; i++) {
+    const img = images[i]
+    const content: ChatContentPart[] = [
+      { type: 'text', text: VISION_TRANSCRIBE_PROMPT },
+      { type: 'image_url', image_url: { url: img.dataUrl } },
+    ]
+    const text = stripTranscription(await complete(visionSettings, [{ role: 'user', content }], signal))
+    onProgress?.(i + 1, images.length)
+    if (/^NOT_A_CHAT_SCREENSHOT\b/.test(text)) {
+      out.push(`（${img.name} 看起来不是聊天记录截图，已跳过）`)
+      continue
+    }
+    out.push(text)
+  }
+  return out.join('\n\n')
 }
 
 /** 拉取模型列表；不是所有服务商都实现，失败时返回空数组。 */

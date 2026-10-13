@@ -1,9 +1,11 @@
 import { useState } from 'react'
-import { IconCircleCheck, IconCopy, IconSparkles, IconSquare, IconUser } from '@tabler/icons-react'
+import { IconCircleCheck, IconCopy, IconSquare, IconUser } from '@tabler/icons-react'
 import { Button } from '#/components/ui/button'
 import { Badge } from '#/components/ui/badge'
+import { AgentAvatar } from './agent-avatar'
 import { Markdown } from './markdown'
 import { copyText, formatDateTime, cn } from '#/lib/utils'
+import { AGENT_LABEL } from '#/lib/brand'
 import { selectAiConfigured, useStudio } from '#/lib/store'
 import { EVIDENCE_TIER_LABEL } from '#/lib/types'
 import type { ChatMessage } from '#/lib/types'
@@ -19,18 +21,17 @@ export function MessageBubble({ message, streaming }: Props) {
 
   return (
     <div className={cn('flex w-full gap-3', isUser && 'flex-row-reverse')}>
-      <div
-        className={cn(
-          'mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg',
-          isUser ? 'bg-secondary text-secondary-foreground' : 'bg-primary/12 text-primary',
-        )}
-      >
-        {isUser ? <IconUser className="size-4" /> : <IconSparkles className="size-4" />}
-      </div>
+      {isUser ? (
+        <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-secondary text-secondary-foreground">
+          <IconUser className="size-4" />
+        </div>
+      ) : (
+        <AgentAvatar className="mt-0.5" />
+      )}
 
       <div className={cn('min-w-0 flex-1 space-y-2', isUser && 'flex flex-col items-end')}>
         <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-          <span>{isUser ? '你' : '军师'}</span>
+          <span>{isUser ? '你' : AGENT_LABEL}</span>
           <span>·</span>
           <span>{formatDateTime(message.createdAt)}</span>
           {message.model && !isUser && (
@@ -166,12 +167,10 @@ export function StreamingBubble() {
   const stop = useStudio((s) => s.stop)
   return (
     <div className="flex w-full gap-3">
-      <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/12 text-primary">
-        <IconSparkles className="size-4" />
-      </div>
+      <AgentAvatar className="mt-0.5" />
       <div className="min-w-0 flex-1 space-y-2">
         <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-          <span>军师</span>
+          <span>{AGENT_LABEL}</span>
           <span>·</span>
           <span>正在生成</span>
           <Button size="sm" variant="ghost" className="ml-auto h-6 gap-1 px-2 text-[11px]" onClick={stop}>

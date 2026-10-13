@@ -25,6 +25,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '#/components/ui/tabs'
 import { PROVIDERS, PROVIDER_MAP } from '#/lib/providers'
 import { useStudio } from '#/lib/store'
 import { listModels } from '#/lib/ai'
+import { PERSONAS } from '#/lib/prompt'
 
 /** 模型连接设置。密钥只写进本机 IndexedDB，不经过任何服务器。 */
 export function AiSettingsDialog({ children }: { children: React.ReactElement }) {
@@ -182,6 +183,32 @@ export function AiSettingsDialog({ children }: { children: React.ReactElement })
           </TabsContent>
 
           <TabsContent value="generation" className="space-y-5 pt-3">
+            <div className="grid gap-2.5">
+              <Label>说话风格</Label>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {PERSONAS.map((p) => {
+                  const active = (draft.persona ?? 'fatfish') === p.id
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => setDraft((d) => ({ ...d, persona: p.id }))}
+                      className={
+                        'rounded-lg border px-3 py-2 text-left transition ' +
+                        (active ? 'border-primary bg-primary/5' : 'hover:border-muted-foreground/40')
+                      }
+                    >
+                      <span className="block text-sm font-medium">{p.label}</span>
+                      <span className="block text-[11px] text-muted-foreground">{p.hint}</span>
+                    </button>
+                  )
+                })}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                风格只影响语气，不影响结论口径：五步结构、证据分级、不预测心意这些硬边界在任何风格下都不变。
+              </p>
+            </div>
+
             <div className="grid gap-3">
               <div className="flex items-center justify-between">
                 <Label>温度（越低越稳，越高越发散）</Label>
@@ -240,6 +267,21 @@ export function AiSettingsDialog({ children }: { children: React.ReactElement })
               <Switch
                 checked={draft.sendRawChat}
                 onCheckedChange={(v) => setDraft((d) => ({ ...d, sendRawChat: v }))}
+              />
+            </div>
+
+            <div className="flex items-start justify-between gap-4 rounded-lg border p-3">
+              <div className="space-y-1">
+                <Label>这个模型能看图</Label>
+                <p className="text-xs text-muted-foreground">
+                  开启后，「聊天记录」页可以直接导入聊天截图，由模型把图里的对话转成文字再走同一套解析。
+                  默认关闭——猜错的代价是把图片当纯文本发过去，接口会报错或答非所问。
+                  常见能看图的模型：<span className="font-mono">gpt-4o / gpt-5 / claude-* / gemini-* / glm-4v / qwen-vl / *-vl</span>。
+                </p>
+              </div>
+              <Switch
+                checked={Boolean(draft.vision)}
+                onCheckedChange={(v) => setDraft((d) => ({ ...d, vision: v }))}
               />
             </div>
 

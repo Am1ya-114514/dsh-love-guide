@@ -41,6 +41,12 @@
 | shadcn（CLI，用于生成 `src/components/ui/` 下的组件） | 4.21.4 | MIT |
 | oxlint | 1.87.0 | MIT |
 | @vitejs/plugin-react | 6.1.2 | MIT |
+| electron（桌面外壳运行时，仅打包时用到） | 44.7.0 | MIT |
+| @electron/packager（打绿色版） | 20.3.0 | BSD-2-Clause |
+| electron-builder（打 Windows 安装包，内部含 NSIS） | 26.15.3 | MIT |
+| NSIS（安装包编译器，随 electron-builder 分发） | — | zlib/libpng |
+
+安装包会把 Electron 运行时与上表前两项一并打包进产物；`electron-builder` 与 NSIS 只参与构建，不进入最终程序。安装界面的三张 BMP 与 `build/icon.ico` 都由本仓库的 Pillow 脚本从**用户提供的图片**生成，不含任何第三方素材。
 
 ## 四、纳入本仓库源码的生成物
 

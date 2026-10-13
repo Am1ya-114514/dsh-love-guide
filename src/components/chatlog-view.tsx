@@ -5,6 +5,8 @@ import {
   IconFileImport,
   IconInfoCircle,
   IconListDetails,
+  IconLoader2,
+  IconPhoto,
   IconSparkles,
   IconTrash,
   IconUpload,
@@ -53,7 +55,45 @@ export function ChatLogView() {
   const [report, setReport] = useState<ReturnType<typeof dryRun> | null>(null)
   const [mapping, setMapping] = useState<SpeakerMapping>({})
   const [busy, setBusy] = useState(false)
+  const [transcribing, setTranscribing] = useState(false)
+  const [shotCount, setShotCount] = useState(0)
   const fileInput = useRef<HTMLInputElement>(null)
+  const shotInput = useRef<HTMLInputElement>(null)
+  const vision = useStudio((s) => Boolean(s.ai.vision))
+  const transcribeImages = useStudio((s) => s.transcribeImages)
+
+  /** 截图走「模型转文字 → 同一套解析」，所以下游和粘贴文本完全共用一条路。 */
+  async function handleScreenshots(files: File[]) {
+    const tooBig = files.find((f) => f.size > 8 * 1024 * 1024)
+    if (tooBig) {
+      toast('warn', `${tooBig.name} 有 ${formatBytes(tooBig.size)}，单张请压到 8MB 以内。`)
+      return
+    }
+    setTranscribing(true)
+    setShotCount(files.length)
+    try {
+      const images = await Promise.all(
+        files.map(
+          (f) =>
+            new Promise<{ name: string; dataUrl: string }>((resolve, reject) => {
+              const reader = new FileReader()
+              reader.onload = () => resolve({ name: f.name, dataUrl: String(reader.result) })
+              reader.onerror = () => reject(new Error(`读不出 ${f.name}`))
+              reader.readAsDataURL(f)
+            }),
+        ),
+      )
+      const text = await transcribeImages(images)
+      if (!text) return
+      setRaw(text)
+      doDryRun(text)
+      toast('ok', `已识别 ${files.length} 张截图，转成了 ${text.split('\n').length} 行。核对完说话人再导入。`)
+    } catch (err) {
+      toast('err', err instanceof Error ? err.message : String(err))
+    } finally {
+      setTranscribing(false)
+    }
+  }
 
   const batches = useMemo(() => {
     const map = new Map<string, { id: string; count: number; first: string; last: string }>()
@@ -124,13 +164,15 @@ export function ChatLogView() {
             <IconInfoCircle className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
             <div className="space-y-1 text-xs leading-relaxed text-muted-foreground">
               <p>
-                <b className="text-foreground">这里不读你的微信或 QQ。</b>
+                 <b className="text-foreground">这里不读你的微信或 QQ。</b>
                 微信/QQ 的聊天数据库是加密的，解密读取既违反平台条款也有法律风险，本程序刻意不提供这个能力。
               </p>
               <p>
-                可行的做法：用聊天软件自带的「导出聊天记录」，或手动复制一段对话，粘贴到下面。
+                可行的做法有三种：用聊天软件自带的「导出聊天记录」；手动复制一段对话粘贴到下面；
+                或者<b className="text-foreground">直接导入聊天截图</b>——那走的是你自己填的视觉模型，
+                图片只发给你的服务商，转成文字之后的解析、统计、画图仍然全在本机。
                 支持带时间戳的纯文本、<code className="rounded bg-muted px-1">名字: 内容</code> 格式，
-                以及 ChatLab 导出的 JSON。全部解析都在浏览器本地完成。
+                以及 ChatLab 导出的 JSON。
               </p>
             </div>
           </div>
@@ -174,16 +216,53 @@ export function ChatLogView() {
                     doDryRun(text)
                   }}
                 />
+                <input
+                  ref={shotInput}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  multiple
+                  className="hidden"
+                  onChange={async (e) => {
+                    const files = [...(e.target.files ?? [])]
+                    e.target.value = ''
+                    if (files.length === 0) return
+                    await handleScreenshots(files)
+                  }}
+                />
                 <Button
                   size="sm"
                   variant="outline"
                   className="ml-auto gap-1.5"
+                  disabled={transcribing}
+                  onClick={() => {
+                    if (!vision) {
+                      toast('warn', '当前模型没标成「能看图」。到「模型连接 → 生成参数」里打开，或换一个支持视觉的模型。')
+                      return
+                    }
+                    shotInput.current?.click()
+                  }}
+                >
+                  <IconPhoto className="size-3.5" />
+                  {transcribing ? `识别中 0/${shotCount}` : '导入截图'}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5"
                   onClick={() => fileInput.current?.click()}
                 >
                   <IconFileImport className="size-3.5" />
                   选择文件
                 </Button>
               </div>
+
+              {transcribing && (
+                <div className="flex items-center gap-2 rounded-lg border border-primary/40 bg-primary/5 p-2.5 text-[11px]">
+                  <IconLoader2 className="size-3.5 animate-spin text-primary" />
+                  正在让模型逐张读图转成文字（{shotCount} 张）。这一步会把图片发给模型，
+                  解析与统计仍然全部在本机完成。
+                </div>
+              )}
 
               <Textarea
                 value={raw}
