@@ -49,7 +49,36 @@ Evidence → Decision → Observation
 | **知识库** | 检索 43 篇材料、看命中片段与出处、检查材料完整性（数量、编号连续性、空文件） |
 | **设置** | 模型连接（7 个预设 + 自定义，可拉取模型列表）、长期记忆开关（明确同意 + 可撤销）、导出/清空本机数据、来源与许可 |
 
-## 快速开始
+## 桌面版（Windows，不用装 Node）
+
+已经打包好的成品是一个绿色程序，解压/拷贝到哪台 Windows 机器上都能直接双击运行：
+
+```
+狗头军师工作室\
+├─ goutoujunshi-studio.exe     ← 双击这个
+├─ goutoujunshi-data\          ← 你的数据（首次运行时自动创建，就在 exe 旁边）
+├─ resources\app.asar          ← 前端与主进程代码
+└─ ...（Electron 运行时）
+```
+
+- **双击就能开，不会弹出黑色终端窗口**（程序是 GUI 子系统，菜单栏也默认隐藏，按 `Alt` 才出现）。
+- **不往 C 盘写东西**：数据库、缓存、窗口大小全部存在 exe 同级的 `goutoujunshi-data\` 里。整个文件夹拷到 U 盘或别的电脑，档案跟着走。
+- 快捷键：`F12` / `Ctrl+Shift+I` 开发者工具，`F5` 或 `Ctrl+R` 刷新，`Ctrl+0` / `Ctrl+=` / `Ctrl+-` 缩放。
+- 程序只监听 `127.0.0.1:41730`，不对外开端口。
+- 双击任务栏图标不会开出第二个窗口——第二次启动会把已有窗口叫到前面。
+
+自己从源码打这个包：
+
+```bash
+pnpm install
+pnpm app:build        # = pnpm build + pnpm run app:pack
+```
+
+产物默认输出到仓库上两级的 `狗头军师工作室\`，用 `GTJS_APP_OUT` 可以改到别处。打包时 Electron 的 400MB 临时文件与缓存都落在仓库内的 `.runtime\`，不碰系统临时目录。
+
+> 打包时偶尔会遇到 `EPERM: operation not permitted, rename ...`：刚写完的几百兆文件会被系统短暂握住句柄。`scripts/pack.mjs` 遇到这种情况不会重来（重来要再解压 400MB），而是等一会儿把已经解压好的目录自己搬到位。
+
+## 从源码运行（Web 版）
 
 需要 Node.js ≥ 22.19 与 pnpm。
 
@@ -96,7 +125,7 @@ API Key 只保存在本机浏览器的 localStorage 里，由浏览器直接请�
 
 ## 技术栈
 
-Vite 8 · React 19 · TypeScript 6 · Tailwind v4 · [shadcn/ui](https://ui.shadcn.com)（base preset，组件源码直接进仓库）· [Base UI](https://base-ui.com) · [@tabler/icons-react](https://tabler.io/icons)（界面图标，不用 emoji）· [ECharts 6](https://echarts.apache.org)（按需引入）· Zustand 5 · Dexie 4 · Zod 4 · oxlint。
+Vite 8 · React 19 · TypeScript 6 · Tailwind v4 · [shadcn/ui](https://ui.shadcn.com)（base preset，组件源码直接进仓库）· [Base UI](https://base-ui.com) · [@tabler/icons-react](https://tabler.io/icons)（界面图标，不用 emoji）· [ECharts 6](https://echarts.apache.org)（按需引入）· Zustand 5 · Dexie 4 · Zod 4 · oxlint · [Electron 44](https://www.electronjs.org)（桌面外壳，仅打包时用到）。
 
 几个值得说明的取舍：
 
@@ -104,12 +133,19 @@ Vite 8 · React 19 · TypeScript 6 · Tailwind v4 · [shadcn/ui](https://ui.shad
 - **不引入 react-markdown**：回答渲染自己写了个极简 Markdown → React 元素的转换，不做 HTML 透传，反而少一层 XSS 面。
 - **聊天记录不进 localStorage**：localStorage 同步阻塞且同源容量约 5 MB，只用来放配置项。
 - **生产构建注入 CSP**（`script-src 'self'`），所以主题系统没有用 next-themes——它靠注入内联脚本防闪烁，会被 CSP 拦掉；这里改成渲染前同步读 localStorage。
+- **桌面版不用 `file://` 加载页面**：`file://` 的 origin 是 `null`，IndexedDB 会直接不可用。改成主进程内起一个只读的 `127.0.0.1:41730` 静态服务（端口固定，因为 IndexedDB 按 origin 隔离，换端口等于换数据库）。
+- **`app.setPath('userData')` 必须排在 `requestSingleInstanceLock()` 前面**：单实例锁会在 userData 里落一个 lockfile，顺序反了它就会在 `%APPDATA%` 留下目录，破坏「不往 C 盘写」。
 
 ## 目录结构
 
 ```
 scripts/
   build-knowledge.mjs 把 knowledge/ 下的 43 篇 Markdown 编译成 TS 产物
+  pack.mjs            组一个最小暂存目录并打包成 Windows 桌面程序
+electron/
+  main.cjs            主进程：内置静态服务、便携数据目录、窗口状态、单实例
+build/
+  make-icon.py        用 Pillow 画狗头图标，生成 icon.ico 与 icon.png
 knowledge/            上游参考资料原文（20 篇核心知识 + 23 篇实用材料，MIT）
 src/
   lib/

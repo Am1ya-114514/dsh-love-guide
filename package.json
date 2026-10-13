@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "main": "electron/main.cjs",
   "imports": {
     "#/*": "./src/*"
   },
@@ -13,6 +14,10 @@
     "lint": "oxlint",
     "start": "vite preview --host 127.0.0.1 --port 4173",
     "preview": "vite preview --host 127.0.0.1 --port 4173",
+    "desktop": "electron .",
+    "app:icon": "python build/make-icon.py",
+    "app:pack": "node scripts/pack.mjs",
+    "app:build": "pnpm build && node scripts/pack.mjs",
     "kb": "node scripts/build-knowledge.mjs",
     "predev": "node scripts/build-knowledge.mjs",
     "prebuild": "node scripts/build-knowledge.mjs",
@@ -37,10 +42,12 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@electron/packager": "^20.3.0",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
     "@vitejs/plugin-react": "^6.1.1",
+    "electron": "^44.7.0",
     "oxlint": "^1.81.0",
     "shadcn": "^4.21.4",
     "tw-animate-css": "^1.4.0",
