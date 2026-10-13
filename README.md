@@ -17,11 +17,12 @@ Evidence → Decision → Observation
 - 不想安装也可以自己构建免安装的绿色版，见下面「自己构建」。
 - 系统会提示「未知发布者」：这是没有代码签名证书的开源项目，源码就在本仓库，可自行比对。
 
-**Android 7.0 及以上 → APK 见 [Releases](https://github.com/Am1ya-114514/dsh-love-guide/releases/latest)。**
+**Android 7.0 及以上 → [`dsh-Love-Guide-0.1.0-debug.apk`](https://github.com/Am1ya-114514/dsh-love-guide/releases/latest)（6.2 MB）**
 
 - 窄屏会自动把左侧栏收进抽屉，右上角汉堡菜单打开。除此之外与桌面版是同一套代码、同一套数据模型。
 - 手机上装完就没有服务器什么事了：API 请求由手机直连你填的那个模型服务商。
 - **导出的 JSON 走系统分享面板**（保存到「文件」或发给别人），而不是桌面版的浏览器下载。
+- 目前是 debug 签名，安装时系统会拦一下「未知来源 / 未知开发者」，允许即可。要正式签名包就按 Capacitor 文档配好 keystore 再跑 `pnpm android:apk --release`。
 
 ## 界面
 
