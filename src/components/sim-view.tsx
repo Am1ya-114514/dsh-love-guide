@@ -298,10 +298,23 @@ export function SimView() {
   }
 
   return (
-    <div className="flex h-full min-h-0">
+    /*
+      背景铺在整个视图上，不只是消息那一栏。
+
+      放在最外层而不是滚动容器上：滚动容器的背景会跟着内容一起被裁到它自己的
+      矩形里，右侧资料栏和底部输入框就还是原来的底色，看起来像贴了一张图。
+
+      顺便把整块内容再压一层氛围色——背景图有时很亮，白底气泡和输入框直接压
+      上去会飘，压一层再让气泡半透明，层级关系才立得住。
+    */
+    <div
+      className={cn('relative flex h-full min-h-0', background && 'bg-cover bg-center bg-no-repeat')}
+      style={background ? { backgroundImage: `url(${background.dataUrl})` } : undefined}
+    >
+      {background && <div className="pointer-events-none absolute inset-0 bg-background/45" />}
       {/* 聊天区 */}
-      <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex flex-wrap items-center gap-2 border-b px-4 py-2.5">
+      <div className="relative flex min-w-0 flex-1 flex-col">
+        <div className="flex flex-wrap items-center gap-2 border-b bg-background/65 px-4 py-2.5 backdrop-blur-md">
           <Badge variant="secondary" className="gap-1">
             <IconMessageChatbot className="size-3.5" />
             模拟对练
@@ -372,18 +385,9 @@ export function SimView() {
           <>
             <div
               ref={scrollRef}
-              className={cn(
-                'min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5',
-                background ? 'bg-cover bg-center bg-no-repeat' : 'bg-muted/25',
-              )}
-              style={background ? { backgroundImage: `url(${background.dataUrl})` } : undefined}
+              className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5"
             >
-              <div
-                className={cn(
-                  'mx-auto flex max-w-3xl flex-col gap-4',
-                  background && 'rounded-2xl bg-background/72 p-4 backdrop-blur-[2px]',
-                )}
-              >
+              <div className="mx-auto flex max-w-3xl flex-col gap-4">
                 {messages.length === 0 ? (
                   <div className="space-y-3 rounded-xl border border-dashed bg-background/70 px-4 py-6 text-center">
                     <div className="space-y-2">
@@ -423,7 +427,7 @@ export function SimView() {
               </div>
             </div>
 
-            <div className="border-t bg-background px-4 py-3">
+            <div className="relative border-t bg-background/65 px-4 py-3 backdrop-blur-md">
               <div className="mx-auto max-w-3xl space-y-2">
                 {!apiReady ? (
                   <p className="flex items-center gap-1.5 text-xs text-evidence-popular">
@@ -464,7 +468,7 @@ export function SimView() {
       </div>
 
       {/* 右栏：会话 + 人设 + 复盘 */}
-      <aside className="hidden w-[330px] shrink-0 flex-col border-l lg:flex">
+      <aside className="relative hidden w-[330px] shrink-0 flex-col border-l bg-background/65 backdrop-blur-md lg:flex">
         <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
           <span className="text-xs font-medium text-muted-foreground">会话</span>
           <Button
