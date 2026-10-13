@@ -9,6 +9,7 @@ const TITLES: Record<WorkspaceView, { title: string; sub: string }> = {
   dialogue: { title: '对话', sub: '说清处境，拿到一个能立刻执行的动作' },
   evidence: { title: '关系进展', sub: '把证据画成 K 线：只解释已记录的事实' },
   chatlog: { title: '聊天记录', sub: '本地解析、说话人映射、互惠指标与推演' },
+  sim: { title: '模拟对练', sub: '让 AI 按人设扮演对方，说错话的代价在这里是零' },
   knowledge: { title: '知识库', sub: '43 篇上游资料，按证据等级检索' },
   settings: { title: '关于与数据', sub: '这个程序做了什么、数据放在哪、怎么带走' },
 }

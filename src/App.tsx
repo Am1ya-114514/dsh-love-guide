@@ -14,6 +14,7 @@ import { cn } from './lib/utils'
  */
 const EvidenceView = lazy(() => import('./components/evidence-view').then((m) => ({ default: m.EvidenceView })))
 const ChatLogView = lazy(() => import('./components/chatlog-view').then((m) => ({ default: m.ChatLogView })))
+const SimView = lazy(() => import('./components/sim-view').then((m) => ({ default: m.SimView })))
 const KnowledgeView = lazy(() => import('./components/knowledge-view').then((m) => ({ default: m.KnowledgeView })))
 const SettingsView = lazy(() => import('./components/settings-view').then((m) => ({ default: m.SettingsView })))
 
@@ -39,6 +40,7 @@ export default function App() {
                 {view === 'dialogue' && <DialogueView />}
                 {view === 'evidence' && <EvidenceView />}
                 {view === 'chatlog' && <ChatLogView />}
+                {view === 'sim' && <SimView />}
                 {view === 'knowledge' && <KnowledgeView />}
                 {view === 'settings' && <SettingsView />}
               </Suspense>

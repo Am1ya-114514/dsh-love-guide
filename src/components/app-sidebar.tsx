@@ -3,6 +3,7 @@ import {
   IconBook2,
   IconChartCandle,
   IconMessages,
+  IconMoodHeart,
   IconPlus,
   IconSettings,
   IconArchive,
@@ -43,6 +44,7 @@ const NAV: { id: WorkspaceView; label: string; icon: typeof IconMessages }[] = [
   { id: 'dialogue', label: '对话', icon: IconMessages },
   { id: 'evidence', label: '关系进展', icon: IconChartCandle },
   { id: 'chatlog', label: '聊天记录', icon: IconDeviceDesktopAnalytics },
+  { id: 'sim', label: '模拟对练', icon: IconMoodHeart },
   { id: 'knowledge', label: '知识库', icon: IconBook2 },
 ]
 

@@ -64,7 +64,8 @@ export function SettingsView() {
               shengjidaguai-china/goutoujunshi
             </a>{' '}
             的关系决策方法论做成了一个独立可运行的本地程序。它复用了上游的 43 篇知识库材料与行为契约，
-            但把「靠模型自觉记得去读文件」换成了确定性的本地检索 + 可视化推演。
+            但把「靠模型自觉记得去读文件」换成了确定性的本地检索 + 可视化推演，
+            并加了一个让你在低风险环境里练手的模拟对练。
           </p>
           <div className="grid gap-2 sm:grid-cols-3">
             <Fact label="运行方式" value="纯本地单页应用" />
@@ -78,10 +79,11 @@ export function SettingsView() {
           <ul className="space-y-1.5 text-xs leading-relaxed text-muted-foreground">
             {[
               '不解密、不直接读取微信/QQ 的聊天数据库，也不绕过任何平台权限。',
-              '不后台监控、不持续抓取，不代替你发送任何消息。',
+              '不后台监控、不持续抓取，不代替你发送任何消息——模拟对练里也一样，每一句都得你自己按。',
               '不预测对方爱不爱你、忠不忠诚、成功率多少。',
               '不用 MBTI 预测关系结果（只当沟通方式参考）。',
               '不把 AI 的推测写进「用户稳定档案」——那种内容只能进假设区。',
+              '不把模拟对练的结果当成对真人的预测：那是你说话方式的复盘，不是对方的反应。',
             ].map((t) => (
               <li key={t} className="flex gap-2">
                 <span className="mt-1.5 size-1 shrink-0 rounded-full bg-muted-foreground" />

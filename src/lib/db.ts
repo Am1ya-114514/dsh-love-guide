@@ -14,8 +14,12 @@ import type {
   ChatLogMessage,
   ChatMessage,
   Citation,
+  EqReport,
   Evidence,
   Realm,
+  SimAsset,
+  SimChatMessage,
+  SimSession,
 } from './types'
 
 export interface MemoryEntry {
@@ -69,6 +73,10 @@ class StudioDb extends Dexie {
   memory!: EntityTable<MemoryEntry, 'id'>
   memoryOps!: EntityTable<MemoryOperation, 'id'>
   settings!: EntityTable<SettingRow, 'key'>
+  simSessions!: EntityTable<SimSession, 'id'>
+  simMessages!: EntityTable<SimChatMessage, 'id'>
+  simAssets!: EntityTable<SimAsset, 'id'>
+  eqReports!: EntityTable<EqReport, 'id'>
 
   constructor() {
     super('goutoujunshi-studio')
@@ -80,6 +88,20 @@ class StudioDb extends Dexie {
       memory: 'id, realmId, [realmId+field], field',
       memoryOps: 'id, realmId, at',
       settings: 'key',
+    })
+    // v2：模拟对练。老库走增量升级，已有档案与聊天记录不动。
+    this.version(2).stores({
+      realms: 'id, archived, updatedAt',
+      chatMessages: 'id, realmId, createdAt',
+      chatLogs: 'id, realmId, importId, sentAt',
+      evidence: 'id, realmId, occurredAt, polarity',
+      memory: 'id, realmId, [realmId+field], field',
+      memoryOps: 'id, realmId, at',
+      settings: 'key',
+      simSessions: 'id, realmId, updatedAt',
+      simMessages: 'id, realmId, sessionId, createdAt',
+      simAssets: 'id, createdAt',
+      eqReports: 'id, realmId, sessionId, at',
     })
   }
 }
@@ -147,17 +169,24 @@ export interface ExportBundle {
   chatMessages: ChatMessage[]
   memory: MemoryEntry[]
   memoryOps: MemoryOperation[]
+  simSessions: SimSession[]
+  simMessages: SimChatMessage[]
+  eqReports: EqReport[]
 }
 
 export async function exportAll(): Promise<ExportBundle> {
-  const [realms, evidence, chatLogs, rows, memory, memoryOps] = await Promise.all([
-    db.realms.toArray(),
-    db.evidence.toArray(),
-    db.chatLogs.toArray(),
-    db.chatMessages.toArray(),
-    db.memory.toArray(),
-    db.memoryOps.toArray(),
-  ])
+  const [realms, evidence, chatLogs, rows, memory, memoryOps, simSessions, simMessages, eqReports] =
+    await Promise.all([
+      db.realms.toArray(),
+      db.evidence.toArray(),
+      db.chatLogs.toArray(),
+      db.chatMessages.toArray(),
+      db.memory.toArray(),
+      db.memoryOps.toArray(),
+      db.simSessions.toArray(),
+      db.simMessages.toArray(),
+      db.eqReports.toArray(),
+    ])
   return {
     app: 'goutoujunshi-studio',
     version: 1,
@@ -168,6 +197,9 @@ export async function exportAll(): Promise<ExportBundle> {
     chatMessages: rows.map(toChatMessage),
     memory,
     memoryOps,
+    simSessions,
+    simMessages,
+    eqReports,
   }
 }
 

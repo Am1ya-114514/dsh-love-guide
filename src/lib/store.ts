@@ -12,8 +12,13 @@ import { computeMetrics, computeReciprocity } from './metrics'
 import { buildReferenceBlock, retrieve } from './knowledge'
 import {
   EVIDENCE_EXTRACTION_PROMPT,
+  PERSONA_EXTRACTION_PROMPT,
   buildSystemPrompt,
   chatlogAnalysisPrompt,
+  coachNotePrompt,
+  eqAnalysisPrompt,
+  renderEqSummary,
+  simSystemPrompt,
 } from './prompt'
 import { PROVIDER_MAP } from './providers'
 import { formatDateTime, toDateKey, uid } from './utils'
@@ -23,15 +28,21 @@ import type {
   ChatLogMessage,
   ChatMessage,
   Citation,
+  EqReport,
+  EqScores,
   Evidence,
   EvidenceCompleteness,
   EvidencePolarity,
   EvidenceTier,
   Realm,
+  SimAsset,
+  SimChatMessage,
+  SimPersona,
+  SimSession,
 } from './types'
 import type { ReciprocityMetrics, RelationMetrics } from './metrics'
 
-export type WorkspaceView = 'dialogue' | 'evidence' | 'chatlog' | 'knowledge' | 'settings'
+export type WorkspaceView = 'dialogue' | 'evidence' | 'chatlog' | 'sim' | 'knowledge' | 'settings'
 
 /**
  * 同时保留的关系档案上限。
@@ -90,6 +101,17 @@ interface StudioState {
   lastError: string | null
   confirmRequest: ConfirmRequest | null
 
+  /* 模拟对练 */
+  simSessions: SimSession[]
+  simSessionId: string
+  simMessages: SimChatMessage[]
+  simAssets: SimAsset[]
+  eqReports: EqReport[]
+  simStreaming: boolean
+  simStreamText: string
+  /** 正在跑的长任务名（人设抽取 / 复盘），用于禁用按钮并显示进度。 */
+  simBusy: string | null
+
   init: () => Promise<void>
   toast: (kind: Toast['kind'], text: string) => void
   dismissToast: (id: string) => void
@@ -123,6 +145,24 @@ interface StudioState {
   analyzeChatLog: (importId?: string) => Promise<void>
   /** 用视觉模型把聊天截图转成可解析的文本；未开启视觉能力时返回 null。 */
   transcribeImages: (images: { name: string; dataUrl: string }[]) => Promise<string | null>
+
+  /* 模拟对练 */
+  createSimSession: (title?: string) => Promise<SimSession | null>
+  selectSimSession: (id: string) => Promise<void>
+  renameSimSession: (id: string, title: string) => Promise<void>
+  deleteSimSession: (id: string) => Promise<void>
+  setSimBackground: (sessionId: string, assetId: string | undefined) => Promise<void>
+  addSimAsset: (file: File) => Promise<SimAsset | null>
+  deleteSimAsset: (id: string) => Promise<void>
+  simSend: (text: string) => Promise<void>
+  simStop: () => void
+  coachNote: () => Promise<void>
+  clearSim: (sessionId?: string) => Promise<void>
+  /** 从已导入的聊天记录里抽对方人设卡；不传 importId 就用这个档案的全部记录。 */
+  extractPersonaFromLogs: (importId?: string) => Promise<boolean>
+  updatePersona: (patch: Partial<SimPersona>) => Promise<void>
+  resetPersona: () => Promise<void>
+  analyzeEq: (sessionId?: string) => Promise<EqReport | null>
 
   applyPublicCase: (caseId: PublicCaseId) => Promise<void>
 }
@@ -225,6 +265,14 @@ export const useStudio = create<StudioState>((set, get) => ({
   toasts: [],
   lastError: null,
   confirmRequest: null,
+  simSessions: [],
+  simSessionId: '',
+  simMessages: [],
+  simAssets: [],
+  eqReports: [],
+  simStreaming: false,
+  simStreamText: '',
+  simBusy: null,
 
   async init() {
     if (get().ready) return
@@ -333,12 +381,17 @@ export const useStudio = create<StudioState>((set, get) => ({
 
   async deleteRealm(id) {
     await db.db.realms.delete(id)
+    const sessionIds = (await db.db.simSessions.where('realmId').equals(id).toArray()).map((s) => s.id)
     await Promise.all([
       db.db.chatMessages.where('realmId').equals(id).delete(),
       db.db.chatLogs.where('realmId').equals(id).delete(),
       db.db.evidence.where('realmId').equals(id).delete(),
       db.db.memory.where('realmId').equals(id).delete(),
       db.db.memoryOps.where('realmId').equals(id).delete(),
+      db.db.simSessions.where('realmId').equals(id).delete(),
+      db.db.simMessages.where('realmId').equals(id).delete(),
+      db.db.eqReports.where('realmId').equals(id).delete(),
+      ...sessionIds.map((sid) => db.db.simMessages.where('sessionId').equals(sid).delete()),
     ])
     const realms = get().realms.filter((r) => r.id !== id)
     set({ realms })
@@ -346,7 +399,17 @@ export const useStudio = create<StudioState>((set, get) => ({
       const next = realms.find((r) => !r.archived) ?? realms[0]
       if (next) await loadRealm(set, next.id)
       else {
-        set({ activeRealmId: '', messages: [], evidence: [], chatLogs: [], memory: [] })
+        set({
+          activeRealmId: '',
+          messages: [],
+          evidence: [],
+          chatLogs: [],
+          memory: [],
+          simSessions: [],
+          simSessionId: '',
+          simMessages: [],
+          eqReports: [],
+        })
       }
     }
   },
@@ -607,6 +670,410 @@ export const useStudio = create<StudioState>((set, get) => ({
     set((s) => ({ evidence: [...s.evidence, ...rows] }))
     get().toast('ok', `已载入公开案例「${item.label}」。这些是合成数据，只用来演示流程。`)
   },
+
+  /* -------------------------------------------------------------------------
+   * 模拟对练
+   * ----------------------------------------------------------------------- */
+
+  async createSimSession(title) {
+    const { activeRealmId, simSessions } = get()
+    if (!activeRealmId) {
+      get().toast('warn', '先建立一个关系档案，模拟对练需要知道你在练谁。')
+      return null
+    }
+    const now = Date.now()
+    const session: SimSession = {
+      id: uid('sim_'),
+      realmId: activeRealmId,
+      title: title?.trim() || `和第 ${simSessions.length + 1} 次练习`,
+      backgroundId: simSessions[0]?.backgroundId,
+      createdAt: now,
+      updatedAt: now,
+    }
+    await db.db.simSessions.put(session)
+    set({ simSessions: [session, ...simSessions], simSessionId: session.id, simMessages: [] })
+    return session
+  },
+
+  async selectSimSession(id) {
+    const rows = await db.db.simMessages.where('sessionId').equals(id).sortBy('createdAt')
+    set({ simSessionId: id, simMessages: rows })
+  },
+
+  async renameSimSession(id, title) {
+    const s = get().simSessions.find((x) => x.id === id)
+    if (!s) return
+    const next = { ...s, title: title.trim() || s.title, updatedAt: Date.now() }
+    await db.db.simSessions.put(next)
+    set((st) => ({ simSessions: st.simSessions.map((x) => (x.id === id ? next : x)) }))
+  },
+
+  async deleteSimSession(id) {
+    await db.db.simMessages.where('sessionId').equals(id).delete()
+    await db.db.simSessions.delete(id)
+    const rest = get().simSessions.filter((s) => s.id !== id)
+    set({ simSessions: rest })
+    if (get().simSessionId === id) {
+      if (rest[0]) await get().selectSimSession(rest[0].id)
+      else set({ simSessionId: '', simMessages: [] })
+    }
+  },
+
+  async setSimBackground(sessionId, assetId) {
+    const s = get().simSessions.find((x) => x.id === sessionId)
+    if (!s) return
+    const next = { ...s, backgroundId: assetId, updatedAt: Date.now() }
+    await db.db.simSessions.put(next)
+    set((st) => ({ simSessions: st.simSessions.map((x) => (x.id === sessionId ? next : x)) }))
+  },
+
+  async addSimAsset(file) {
+    if (file.size > 6 * 1024 * 1024) {
+      get().toast('warn', '背景图请控制在 6 MB 以内——它会整张存进本机数据库。')
+      return null
+    }
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(String(reader.result))
+      reader.onerror = () => reject(new Error('读取图片失败'))
+      reader.readAsDataURL(file)
+    })
+    const asset: SimAsset = { id: uid('as_'), name: file.name, dataUrl, createdAt: Date.now() }
+    await db.db.simAssets.put(asset)
+    set((s) => ({ simAssets: [asset, ...s.simAssets] }))
+    return asset
+  },
+
+  async deleteSimAsset(id) {
+    await db.db.simAssets.delete(id)
+    set((s) => ({ simAssets: s.simAssets.filter((a) => a.id !== id) }))
+    // 正在用这张图的会话把引用清掉，免得留下悬空 id
+    const used = get().simSessions.filter((s) => s.backgroundId === id)
+    for (const s of used) {
+      const next = { ...s, backgroundId: undefined }
+      await db.db.simSessions.put(next)
+      set((st) => ({ simSessions: st.simSessions.map((x) => (x.id === s.id ? next : x)) }))
+    }
+  },
+
+  async simSend(text) {
+    const trimmed = text.trim()
+    if (!trimmed) return
+    const { activeRealmId, simSessionId, simMessages, ai, consentAt } = get()
+    if (!activeRealmId) {
+      get().toast('warn', '先建立一个关系档案。')
+      return
+    }
+    let sessionId = simSessionId
+    if (!sessionId) {
+      const created = await get().createSimSession()
+      if (!created) return
+      sessionId = created.id
+    }
+    const realm = get().realms.find((r) => r.id === activeRealmId)
+
+    const userMsg: SimChatMessage = {
+      id: uid('sm_'),
+      realmId: activeRealmId,
+      sessionId,
+      role: 'user',
+      content: trimmed,
+      createdAt: Date.now(),
+    }
+    await db.db.simMessages.put(userMsg)
+    const history = [...simMessages, userMsg]
+    set({ simMessages: history })
+
+    if (!ai.apiKey.trim() && !ai.baseUrl.startsWith('http://127.0.0.1')) {
+      const err: SimChatMessage = {
+        id: uid('sm_'),
+        realmId: activeRealmId,
+        sessionId,
+        role: 'partner',
+        content: '',
+        createdAt: Date.now(),
+        error: '还没有配置模型。打开左下角「模型连接」填入 API Key，模拟对练才有内容。',
+      }
+      await db.db.simMessages.put(err)
+      set((s) => ({ simMessages: [...s.simMessages, err] }))
+      return
+    }
+
+    // 模拟里不检索知识库：这是"对方"在说话，不是军师在给建议。
+    const system = simSystemPrompt({
+      realmName: realm?.name ?? '对方',
+      persona: { ...DEFAULT_PERSONA, ...(realm?.persona ?? {}) },
+      profile: realm?.profile,
+      memoryEnabled: consentAt !== null,
+    })
+    const turns: { role: 'system' | 'user' | 'assistant'; content: string }[] = [
+      { role: 'system', content: system },
+    ]
+    // 只带最近的对话，且过滤掉 error 与 coach（点评不进入"对方"的上下文）
+    for (const m of history.slice(-20)) {
+      if (m.error || m.role === 'coach' || !m.content.trim()) continue
+      turns.push({ role: m.role === 'partner' ? 'assistant' : 'user', content: m.content })
+    }
+
+    abortController = new AbortController()
+    set({ simStreaming: true, simStreamText: '', lastError: null })
+    let full = ''
+    try {
+      await streamChat(ai, turns, {
+        onDelta: (t) => {
+          full += t
+          set({ simStreamText: full })
+        },
+        onDone: () => {},
+        onError: (err) => set({ lastError: err.message }),
+        signal: abortController.signal,
+      })
+    } catch (err) {
+      const message = err instanceof AiError ? err.message : String(err)
+      set({ lastError: message })
+    }
+    abortController = null
+
+    const partner: SimChatMessage = {
+      id: uid('sm_'),
+      realmId: activeRealmId,
+      sessionId,
+      role: 'partner',
+      content: full.trim(),
+      createdAt: Date.now(),
+      error: full.trim() ? undefined : '这一轮没有拿到回应（检查网络、密钥或模型名）。',
+    }
+    await db.db.simMessages.put(partner)
+    const nextSessions = get().simSessions.map((s) =>
+      s.id === sessionId ? { ...s, updatedAt: Date.now() } : s,
+    )
+    set((s) => ({ simMessages: [...s.simMessages, partner], simStreaming: false, simStreamText: '', simSessions: nextSessions }))
+    const touched = nextSessions.find((s) => s.id === sessionId)
+    if (touched) await db.db.simSessions.put(touched)
+  },
+
+  simStop() {
+    abortController?.abort()
+    abortController = null
+    set({ simStreaming: false })
+  },
+
+  async coachNote() {
+    const { ai, activeRealmId, simSessionId, simMessages } = get()
+    if (!activeRealmId || !simSessionId) return
+    if (!ai.apiKey.trim()) {
+      get().toast('warn', '场外点评也要用模型，先去「模型连接」填 API Key。')
+      return
+    }
+    const spoken = simMessages.filter((m) => m.role !== 'coach' && m.content.trim())
+    if (spoken.length < 2) {
+      get().toast('warn', '至少聊两句再叫点评。')
+      return
+    }
+    set({ simBusy: '场外点评' })
+    try {
+      const recent = spoken
+        .slice(-12)
+        .map((m) => `${m.role === 'user' ? '用户' : '对方'}：${m.content}`)
+        .join('\n')
+      const text = await complete(
+        { ...ai, maxTokens: Math.max(ai.maxTokens, 900) },
+        [
+          { role: 'system', content: coachNotePrompt(recent) },
+          { role: 'user', content: '请点评。' },
+        ],
+        undefined,
+      )
+      const note: SimChatMessage = {
+        id: uid('sm_'),
+        realmId: activeRealmId,
+        sessionId: simSessionId,
+        role: 'coach',
+        content: text.trim(),
+        createdAt: Date.now(),
+      }
+      await db.db.simMessages.put(note)
+      set((s) => ({ simMessages: [...s.simMessages, note] }))
+    } catch (err) {
+      const msg = err instanceof AiError ? err.message : String(err)
+      get().toast('err', `点评失败：${msg}`)
+    } finally {
+      set({ simBusy: null })
+    }
+  },
+
+  async clearSim(sessionId) {
+    const sid = sessionId ?? get().simSessionId
+    if (!sid) return
+    await db.db.simMessages.where('sessionId').equals(sid).delete()
+    if (get().simSessionId === sid) set({ simMessages: [] })
+  },
+
+  async extractPersonaFromLogs(importId) {
+    const { ai, activeRealmId, chatLogs, realms } = get()
+    if (!activeRealmId) return false
+    if (!ai.apiKey.trim()) {
+      get().toast('warn', '分析人设要用模型，先去「模型连接」填 API Key。')
+      return false
+    }
+    const pool = (importId ? chatLogs.filter((m) => m.importId === importId) : chatLogs).filter(
+      (m) => m.speaker === 'target',
+    )
+    if (pool.length < 8) {
+      get().toast('warn', `对方的发言只有 ${pool.length} 条，太少，抽出来的人设会不靠谱。先在「聊天记录」里导入一批。`)
+      return false
+    }
+    set({ simBusy: '分析对方人设' })
+    try {
+      // 只发对方说的话，且截到 400 条，避免把整份记录推上去
+      const sample = pool.slice(-400)
+      const lines = sample.map((m) => `${m.sentAt || ''} ${m.content}`.trim()).join('\n')
+      const text = await complete(
+        { ...ai, temperature: 0.2, maxTokens: Math.max(ai.maxTokens, 1600) },
+        [
+          { role: 'system', content: PERSONA_EXTRACTION_PROMPT },
+          { role: 'user', content: `以下是对方（不是用户）说过的 ${sample.length} 条发言：\n\n${lines}` },
+        ],
+        undefined,
+      )
+      const raw = extractJson<Partial<SimPersona>>(text)
+      if (!raw) {
+        get().toast('err', '模型没有按格式返回人设卡，再试一次或改用手动填写。')
+        return false
+      }
+      const existing = realms.find((r) => r.id === activeRealmId)?.persona
+      const persona: SimPersona = {
+        speechStyle: String(raw.speechStyle ?? '').trim() || existing?.speechStyle || '',
+        catchphrases: toStringArray(raw.catchphrases),
+        topics: toStringArray(raw.topics),
+        emotionalStyle: String(raw.emotionalStyle ?? '').trim() || existing?.emotionalStyle || '',
+        replyRhythm: String(raw.replyRhythm ?? '').trim() || existing?.replyRhythm || '',
+        turnOffs: toStringArray(raw.turnOffs),
+        quotes: toStringArray(raw.quotes).slice(0, 8),
+        derivedFrom: existing && existing.derivedFrom !== 'chatlog' ? 'hybrid' : 'chatlog',
+        updatedAt: Date.now(),
+      }
+      await get().updatePersona(persona)
+      get().toast('ok', `已从 ${sample.length} 条对方发言里抽出人设卡。原文片段留着可以核对，不对就手改。`)
+      return true
+    } catch (err) {
+      const msg = err instanceof AiError ? err.message : String(err)
+      get().toast('err', `人设分析失败：${msg}`)
+      return false
+    } finally {
+      set({ simBusy: null })
+    }
+  },
+
+  async updatePersona(patch) {
+    const { activeRealmId, realms } = get()
+    if (!activeRealmId) return
+    const realm = realms.find((r) => r.id === activeRealmId)
+    if (!realm) return
+    const merged: SimPersona = {
+      ...DEFAULT_PERSONA,
+      ...(realm.persona ?? {}),
+      ...patch,
+      updatedAt: Date.now(),
+    }
+    if (!patch.derivedFrom && realm.persona) {
+      merged.derivedFrom = realm.persona.derivedFrom === 'chatlog' ? 'hybrid' : realm.persona.derivedFrom
+    }
+    const next = { ...realm, persona: merged, updatedAt: Date.now() }
+    await db.db.realms.put(next)
+    set((s) => ({ realms: s.realms.map((r) => (r.id === next.id ? next : r)) }))
+  },
+
+  async resetPersona() {
+    const { activeRealmId, realms } = get()
+    if (!activeRealmId) return
+    const realm = realms.find((r) => r.id === activeRealmId)
+    if (!realm) return
+    const next = { ...realm, persona: undefined, updatedAt: Date.now() }
+    await db.db.realms.put(next)
+    set((s) => ({ realms: s.realms.map((r) => (r.id === next.id ? next : r)) }))
+    get().toast('ok', '人设卡已清空。')
+  },
+
+  async analyzeEq(sessionId) {
+    const { ai, activeRealmId, simSessions, simMessages } = get()
+    const sid = sessionId ?? get().simSessionId
+    if (!activeRealmId || !sid) {
+      get().toast('warn', '还没有可复盘的模拟会话。')
+      return null
+    }
+    if (!ai.apiKey.trim()) {
+      get().toast('warn', '复盘要用模型，先去「模型连接」填 API Key。')
+      return null
+    }
+    const rows = get().simSessionId === sid ? simMessages : await db.db.simMessages.where('sessionId').equals(sid).sortBy('createdAt')
+    const spoken = rows.filter((m) => (m.role === 'user' || m.role === 'partner') && m.content.trim())
+    const userTurns = spoken.filter((m) => m.role === 'user').length
+    if (userTurns < 3) {
+      get().toast('warn', '你在这个会话里只说了不到三句，复盘没有样本。多聊几句再来。')
+      return null
+    }
+    set({ simBusy: '复盘情商指标' })
+    try {
+      const transcript = spoken
+        .map((m) => `${m.role === 'user' ? '用户' : '对方'}：${m.content}`)
+        .join('\n')
+      const text = await complete(
+        { ...ai, temperature: 0.2, maxTokens: Math.max(ai.maxTokens, 1800) },
+        [
+          { role: 'system', content: eqAnalysisPrompt(transcript) },
+          { role: 'user', content: '请给出复盘 JSON。' },
+        ],
+        undefined,
+      )
+      const raw = extractJson<{
+        scores?: Partial<EqScores>
+        strengths?: string[]
+        fixes?: { said?: string; better?: string; why?: string }[]
+        summary?: string
+      }>(text)
+      if (!raw?.scores) {
+        get().toast('err', '模型没有按格式返回复盘，再试一次。')
+        return null
+      }
+      const scores: EqScores = {
+        empathy: clampScore(raw.scores.empathy),
+        clarity: clampScore(raw.scores.clarity),
+        boundary: clampScore(raw.scores.boundary),
+        initiative: clampScore(raw.scores.initiative),
+        pacing: clampScore(raw.scores.pacing),
+        repair: clampScore(raw.scores.repair),
+      }
+      const overall = Math.round(
+        (scores.empathy + scores.clarity + scores.boundary + scores.initiative + scores.pacing + scores.repair) / 6,
+      )
+      const report: EqReport = {
+        id: uid('eq_'),
+        realmId: activeRealmId,
+        sessionId: sid,
+        at: Date.now(),
+        scores,
+        overall,
+        strengths: toStringArray(raw.strengths).slice(0, 3),
+        fixes: (raw.fixes ?? [])
+          .map((f) => ({ said: String(f.said ?? ''), better: String(f.better ?? ''), why: String(f.why ?? '') }))
+          .filter((f) => f.said || f.better)
+          .slice(0, 3),
+        summary: String(raw.summary ?? '').slice(0, 80),
+      }
+      await db.db.eqReports.put(report)
+      set((s) => ({ eqReports: [...s.eqReports.filter((r) => r.sessionId !== sid), report].sort((a, b) => a.at - b.at) }))
+      const session = simSessions.find((s) => s.id === sid)
+      get().toast('ok', `「${session?.title ?? '这次练习'}」复盘完成：情商均分 ${overall}。军师之后的建议会参考它。`)
+      return report
+    } catch (err) {
+      const msg = err instanceof AiError ? err.message : String(err)
+      get().toast('err', `复盘失败：${msg}`)
+      return null
+    } finally {
+      set({ simBusy: null })
+    }
+  },
 }))
 
 /* ---------------------------------------------------------------------------
@@ -617,18 +1084,31 @@ type Set = (partial: Partial<StudioState> | ((s: StudioState) => Partial<StudioS
 type Get = () => StudioState
 
 async function loadRealm(set: Set, id: string) {
-  const [messages, evidence, chatLogs, memory] = await Promise.all([
+  const [messages, evidence, chatLogs, memory, simSessions, simAssets, eqReports] = await Promise.all([
     db.db.chatMessages.where('realmId').equals(id).sortBy('createdAt'),
     db.db.evidence.where('realmId').equals(id).sortBy('createdAt'),
     db.db.chatLogs.where('realmId').equals(id).sortBy('sentAt'),
     db.db.memory.where('realmId').equals(id).toArray(),
+    db.db.simSessions.where('realmId').equals(id).toArray(),
+    db.db.simAssets.toArray(),
+    db.db.eqReports.where('realmId').equals(id).toArray(),
   ])
+  const sessions = simSessions.sort((a, b) => b.updatedAt - a.updatedAt)
+  const activeSession = sessions[0]
+  const simMessages = activeSession
+    ? await db.db.simMessages.where('sessionId').equals(activeSession.id).sortBy('createdAt')
+    : []
   set({
     activeRealmId: id,
     messages: messages.map(db.toChatMessage),
     evidence: evidence.sort((a, b) => a.occurredAt.localeCompare(b.occurredAt) || a.createdAt - b.createdAt),
     chatLogs,
     memory,
+    simSessions: sessions,
+    simSessionId: activeSession?.id ?? '',
+    simMessages,
+    simAssets: simAssets.sort((a, b) => b.createdAt - a.createdAt),
+    eqReports: eqReports.sort((a, b) => a.at - b.at),
   })
 }
 
@@ -651,6 +1131,44 @@ function normalizeCompleteness(v: string | undefined): EvidenceCompleteness {
   return allow.includes(v as EvidenceCompleteness) ? (v as EvidenceCompleteness) : 'low'
 }
 
+/* ---------------------------------------------------------------------------
+ * 模拟对练的小工具
+ * ------------------------------------------------------------------------- */
+
+/** 人设卡的空白底子：用户没填任何东西也能开一局，只是"对方"会比较普通。 */
+export const DEFAULT_PERSONA: SimPersona = {
+  speechStyle: '',
+  catchphrases: [],
+  topics: [],
+  emotionalStyle: '',
+  replyRhythm: '',
+  turnOffs: [],
+  quotes: [],
+  derivedFrom: 'manual',
+  updatedAt: 0,
+}
+
+/** 模型返回的数组字段可能是字符串、数组或 undefined，统一成干净的字符串数组。 */
+function toStringArray(v: unknown): string[] {
+  if (Array.isArray(v)) {
+    return v.map((x) => String(x).trim()).filter(Boolean).slice(0, 12)
+  }
+  if (typeof v === 'string' && v.trim()) {
+    return v
+      .split(/[、,，\n]/)
+      .map((x) => x.trim())
+      .filter(Boolean)
+      .slice(0, 12)
+  }
+  return []
+}
+
+function clampScore(v: unknown): number {
+  const n = typeof v === 'number' ? v : Number(v)
+  if (!Number.isFinite(n)) return 0
+  return Math.max(0, Math.min(100, Math.round(n)))
+}
+
 /** 组装一轮助手回答：检索资料 → 拼系统提示 → 流式回答 → 落库。 */
 async function runAssistant(
   set: Set,
@@ -658,7 +1176,7 @@ async function runAssistant(
   realmId: string,
   extra?: { extraSystem?: string; rawLogBlock?: string },
 ) {
-  const { ai, messages, evidence, consentAt, realms } = get()
+  const { ai, messages, evidence, consentAt, realms, eqReports } = get()
   const realm = realms.find((r) => r.id === realmId)
   const lastUser = [...messages].reverse().find((m) => m.role === 'user')
 
@@ -691,6 +1209,8 @@ async function runAssistant(
     referenceBlock,
     metricsSummary: renderMetrics(metrics),
     persona: ai.persona,
+    // 模拟对练的复盘结论会进入正式建议——这是用户明确要求的"以后参考"
+    eqSummary: renderEqSummary(eqReports),
   })
 
   const turns: { role: 'system' | 'user' | 'assistant'; content: string }[] = [{ role: 'system', content: system }]

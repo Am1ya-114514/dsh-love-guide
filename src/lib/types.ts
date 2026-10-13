@@ -179,8 +179,116 @@ export interface Realm {
   /** 临时对象不写长期记忆。 */
   temporary: boolean
   profile: RealmProfile
+  /** 模拟对练里扮演这个对象时用的人设卡。没建过就是 undefined。 */
+  persona?: SimPersona
   createdAt: number
   updatedAt: number
+}
+
+/* ----------------------------------------------------------------------------
+ * 模拟对练
+ * ------------------------------------------------------------------------- */
+
+/**
+ * 对方人设卡：模拟对练里「AI 扮演的那个对象」是什么样的人。
+ *
+ * 三个来源：用户手填、从导入的聊天记录里抽、两者混合。
+ * 它不是心理测评，只是把「这个人平时怎么说话、在意什么、什么会让她冷下来」
+ * 写清楚，好让模拟不至于变成「一个永远配合的假人」。
+ */
+export interface SimPersona {
+  /** 说话方式：句子长短、标点习惯、语气词、用不用表情。 */
+  speechStyle: string
+  /** 口头禅与高频用词（原文里真出现过的）。 */
+  catchphrases: string[]
+  /** 常聊的话题与在意的东西。 */
+  topics: string[]
+  /** 情绪表达方式：开心/不高兴时分别怎么表现。 */
+  emotionalStyle: string
+  /** 回复节奏：回得快不快、主动不主动、会不会已读不回。 */
+  replyRhythm: string
+  /** 雷区：不喜欢的话题、会让她退开的做法。 */
+  turnOffs: string[]
+  /** 抽取时依据的原文片段，便于核对而不是让人相信一句转述。 */
+  quotes: string[]
+  derivedFrom: 'manual' | 'chatlog' | 'hybrid'
+  updatedAt: number
+}
+
+/** 一次模拟会话。 */
+export interface SimSession {
+  id: string
+  realmId: string
+  title: string
+  /** 背景图（simAssets 的 id）。空则用纯色。 */
+  backgroundId?: string
+  createdAt: number
+  updatedAt: number
+}
+
+/** 模拟会话里的一条消息。 */
+export interface SimChatMessage {
+  id: string
+  realmId: string
+  sessionId: string
+  /**
+   * user   用户自己说的
+   * partner AI 扮演的那个对象
+   * coach  场外点评（点评不进入对方的上下文）
+   */
+  role: 'user' | 'partner' | 'coach'
+  content: string
+  createdAt: number
+  error?: string
+}
+
+/** 六个情商维度。分数只是练习反馈，不是人格测评。 */
+export interface EqScores {
+  /** 共情与情绪承接：对方说难受时，你有没有先接住。 */
+  empathy: number
+  /** 表达清晰：有没有说清楚自己要什么。 */
+  clarity: number
+  /** 边界与自尊：被拒绝、被冷落时有没有守住自己。 */
+  boundary: number
+  /** 主动推进：该出手时有没有出手。 */
+  initiative: number
+  /** 节奏与分寸：连发、追问、冷场的控制。 */
+  pacing: number
+  /** 冲突修复：有摩擦后怎么收回来。 */
+  repair: number
+}
+
+export const EQ_DIMENSIONS: { key: keyof EqScores; label: string; hint: string }[] = [
+  { key: 'empathy', label: '共情承接', hint: '对方说难受时，你先接住了还是先讲道理' },
+  { key: 'clarity', label: '表达清晰', hint: '有没有把自己想要的说清楚' },
+  { key: 'boundary', label: '边界与自尊', hint: '被拒绝或被冷落时有没有守住自己' },
+  { key: 'initiative', label: '主动推进', hint: '该出手的时候有没有出手' },
+  { key: 'pacing', label: '节奏分寸', hint: '连发、追问、冷场的控制' },
+  { key: 'repair', label: '冲突修复', hint: '有摩擦之后怎么收回来' },
+]
+
+/** 一次模拟结束后的复盘报告。 */
+export interface EqReport {
+  id: string
+  realmId: string
+  sessionId: string
+  at: number
+  scores: EqScores
+  overall: number
+  /** 做得好的地方（尽量引原句）。 */
+  strengths: string[]
+  /** 可以改的具体句子。 */
+  fixes: { said: string; better: string; why: string }[]
+  /** 一句话总评。 */
+  summary: string
+}
+
+/** 背景图等本地素材，只存在本机。 */
+export interface SimAsset {
+  id: string
+  name: string
+  dataUrl: string
+  createdAt: number
 }
 
 /* ----------------------------------------------------------------------------
