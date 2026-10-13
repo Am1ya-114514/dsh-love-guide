@@ -195,6 +195,7 @@ async function createWindow() {
     title: APP_NAME,
     icon: packagedIcon(),
     webPreferences: {
+      preload: path.join(__dirname, 'studio-preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -363,6 +364,18 @@ function registerOverlayIpc() {
 
   ipcMain.handle('overlay:hide', () => {
     if (overlayWin && !overlayWin.isDestroyed()) overlayWin.hide()
+    return true
+  })
+
+  // 主窗口那一侧的入口。除了快捷键，用户还需要一个看得见的地方能把悬浮窗叫出来，
+  // 否则「有个功能但不知道在哪开」和没有这个功能是一样的。
+  ipcMain.handle('overlay:visible', () => Boolean(overlayWin && !overlayWin.isDestroyed() && overlayWin.isVisible()))
+
+  ipcMain.handle('overlay:show', async () => {
+    if (!overlayWin || overlayWin.isDestroyed()) await createOverlay()
+    if (!overlayWin || overlayWin.isDestroyed()) return false
+    overlayWin.show()
+    overlayWin.focus()
     return true
   })
 }

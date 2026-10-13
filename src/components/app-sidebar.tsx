@@ -37,6 +37,7 @@ import {
 } from '#/lib/store'
 import { cn } from '#/lib/utils'
 import { AiSettingsDialog } from './ai-settings-dialog'
+import { LiveHintRow } from './live-hint-row'
 import { NewRealmDialog } from './realm-editor'
 import { ThemeToggle } from './theme-toggle'
 
@@ -275,6 +276,8 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
             />
           </button>
         </AiSettingsDialog>
+
+        <LiveHintRow />
 
         <ThemeToggle />
 

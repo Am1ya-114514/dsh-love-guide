@@ -21,7 +21,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { complete, type ChatTurn } from '#/lib/ai'
 import { getSetting } from '#/lib/db'
-import { AI_KEY, DEFAULT_AI } from '#/lib/store'
+import { IconChevronDown, IconX } from '@tabler/icons-react'
+import brand from '#/assets/brand.png'
+import { AI_KEY, DEFAULT_AI } from '#/lib/ai-defaults'
 import { CORE_PERSONA, HARD_BOUNDARIES, personaBlock } from '#/lib/prompt'
 import type { AiSettings } from '#/lib/types'
 
@@ -293,11 +295,12 @@ export function OverlayApp() {
     return (
       <div className="ov-root ov-collapsed">
         <button className="ov-drag" onClick={toggleCollapsed} title="展开">
+          <img className="ov-brand" src={brand} alt="" />
           <span className="ov-dot" data-on={status?.ready ? '1' : '0'} />
           dsh-Love Guide
         </button>
-        <button className="ov-mini" onClick={() => void toggleCollapsed()}>
-          展开
+        <button className="ov-mini" onClick={() => void api.hide()} title="关闭悬浮窗" aria-label="关闭悬浮窗">
+          <IconX size={14} stroke={2} />
         </button>
       </div>
     )
@@ -306,14 +309,15 @@ export function OverlayApp() {
   return (
     <div className="ov-root">
       <header className="ov-bar">
+        <img className="ov-brand" src={brand} alt="" />
         <span className="ov-dot" data-on={status?.ready ? '1' : '0'} />
-        <strong>悬浮窗</strong>
+        <strong>实时建议</strong>
         <span className="ov-spacer" />
-        <button className="ov-mini" onClick={() => void toggleCollapsed()} title="收起">
-          收起
+        <button className="ov-mini" onClick={() => void toggleCollapsed()} title="收起" aria-label="收起">
+          <IconChevronDown size={14} stroke={2} />
         </button>
-        <button className="ov-mini" onClick={() => void api.hide()} title="隐藏">
-          隐藏
+        <button className="ov-mini" onClick={() => void api.hide()} title="关闭悬浮窗" aria-label="关闭悬浮窗">
+          <IconX size={14} stroke={2} />
         </button>
       </header>
 

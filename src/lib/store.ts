@@ -52,22 +52,11 @@ export type WorkspaceView = 'dialogue' | 'evidence' | 'chatlog' | 'sim' | 'knowl
  */
 export const MAX_REALMS = 5
 
-export const CONSENT_KEY = 'memory.consentAt'
-export const AI_KEY = 'ai.settings'
-export const WEIGHTS_KEY = 'evidence.weights'
+// 这三个键与 DEFAULT_AI 挪到了 ai-defaults.ts，这里转出去，
+// 免得改一处 import 要动遍半个项目。悬浮窗直接 import 那个小文件。
+import { AI_KEY, CONSENT_KEY, DEFAULT_AI, WEIGHTS_KEY } from './ai-defaults'
 
-export const DEFAULT_AI: AiSettings = {
-  providerId: 'deepseek',
-  baseUrl: 'https://api.deepseek.com',
-  apiKey: '',
-  model: 'deepseek-chat',
-  temperature: 0.6,
-  maxTokens: 2400,
-  sendRawChat: false,
-  sendReferences: true,
-  persona: 'fatfish',
-  vision: false,
-}
+export { AI_KEY, CONSENT_KEY, DEFAULT_AI, WEIGHTS_KEY }
 
 interface Toast {
   id: string
