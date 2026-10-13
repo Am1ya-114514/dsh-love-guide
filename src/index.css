@@ -800,6 +800,30 @@
   body {
     @apply bg-background text-foreground;
   }
+  /*
+    Android / iOS 的安全区。桌面浏览器与 Electron 里这四个变量都是 0，加了等于没加。
+    Android 15 起强制 edge-to-edge，WebView 会铺到状态栏和手势条底下，必须自己让开。
+    用 box-sizing: border-box（preflight 已经全局设过），所以 100dvh 是含内边距的总高，
+    不会因为加了 padding 而溢出。
+  */
+  :root {
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-right: env(safe-area-inset-right, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left: env(safe-area-inset-left, 0px);
+  }
+  .app-shell {
+    height: 100dvh;
+    padding-top: var(--safe-top);
+    padding-bottom: var(--safe-bottom);
+    padding-left: var(--safe-left);
+    padding-right: var(--safe-right);
+  }
+  /* 固定定位的元素相对视口定位，同样会钻到系统栏下面，得单独让开。 */
+  .safe-pad {
+    padding-top: var(--safe-top);
+    padding-right: var(--safe-right);
+  }
 }
 
 /* initTheme() 会往 <html> 写 data-theme。在它跑起来之前先用系统偏好铺一层底色，

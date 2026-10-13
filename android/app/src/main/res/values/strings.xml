@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">dsh-Love Guide</string>
+    <string name="title_activity_main">dsh-Love Guide</string>
+    <string name="package_name">com.am1ya.dshloveguide</string>
+    <string name="custom_url_scheme">com.am1ya.dshloveguide</string>
+</resources>

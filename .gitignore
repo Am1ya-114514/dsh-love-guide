@@ -18,6 +18,10 @@ src/data/knowledge.generated.ts
 # 本地运行产生的临时目录
 .runtime
 
+# build/make-android-art.py 的中间产物（1024 与 2732 的大图）。
+# 真正进 APK 的是 android/app/src/main/res/ 下切好的那些，这个目录纯属可再生成。
+assets
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -28,3 +32,29 @@ src/data/knowledge.generated.ts
 *.njsproj
 *.sln
 *.sw?
+
+# ---------------------------------------------------------------------------
+# Android（Capacitor 生成的 android/ 目录）
+#
+# android/ 本身**要入库**：图标、启动图、gradle.properties 的改动、以及我们定制的
+# 品牌资源都在里面，不提交就等于每次重新生成后全部丢失。
+# 但构建产物与机器相关配置不入库：
+# ---------------------------------------------------------------------------
+android/.gradle
+android/build
+android/app/build
+android/app/release
+android/captures
+android/local.properties
+android/.idea
+android/.cxx
+# cap sync 每次都把 dist/ 与几份 json 重新灌进来，属于构建产物，不入库。
+# res/ 下的图标与启动图相反：那是我们用 build/make-android-art.py 生成后固化下来的品牌资源，
+# 入了库之后别人 clone 下来直接 gradle 就能打出正确图标的包，不必再装 Python + Pillow。
+android/app/src/main/assets/public
+android/app/src/main/assets/capacitor.config.json
+android/app/src/main/assets/capacitor.plugins.json
+*.apk
+*.aab
+*.keystore
+*.jks

@@ -17,6 +17,7 @@ import { Switch } from '#/components/ui/switch'
 import { AiSettingsDialog } from './ai-settings-dialog'
 import { exportAll, wipeAll } from '#/lib/db'
 import { KNOWLEDGE_META } from '#/lib/knowledge'
+import { saveTextFile, todayStamp } from '#/lib/save-file'
 import { providerLabel, useStudio } from '#/lib/store'
 
 export function SettingsView() {
@@ -32,14 +33,15 @@ export function SettingsView() {
     try {
       const bundle = await exportAll()
       const text = JSON.stringify(bundle, null, 2)
-      const blob = new Blob([text], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `goutoujunshi-studio-${new Date().toISOString().slice(0, 10)}.json`
-      a.click()
-      URL.revokeObjectURL(url)
-      toast('ok', `已导出 ${bundle.realms.length} 个档案、${bundle.evidence.length} 条证据、${bundle.chatLogs.length} 条聊天记录。`)
+      const outcome = await saveTextFile(`dsh-love-guide-${todayStamp()}.json`, text)
+      toast(
+        'ok',
+        outcome === 'shared'
+          ? `已导出 ${bundle.realms.length} 个档案、${bundle.evidence.length} 条证据、${bundle.chatLogs.length} 条聊天记录，请在分享面板里选保存位置。`
+          : `已导出 ${bundle.realms.length} 个档案、${bundle.evidence.length} 条证据、${bundle.chatLogs.length} 条聊天记录。`,
+      )
+    } catch (err) {
+      toast('err', `导出失败：${err instanceof Error ? err.message : String(err)}`)
     } finally {
       setBusy(false)
     }

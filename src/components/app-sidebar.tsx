@@ -49,7 +49,11 @@ const NAV: { id: WorkspaceView; label: string; icon: typeof IconMessages }[] = [
 ]
 
 
-export function AppSidebar() {
+/**
+ * 侧栏。窄屏（手机）下它不再常驻，而是被塞进 App.tsx 的抽屉里 —— 所以给了个
+ * `onNavigate`：抽屉里点完任何一项都该把抽屉收起来，否则会挡住刚打开的内容。
+ */
+export function AppSidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
   const [creating, setCreating] = useState(false)
   const realms = useStudio((s) => s.realms)
   const activeRealmId = useStudio((s) => s.activeRealmId)
@@ -142,7 +146,7 @@ export function AppSidebar() {
               <button
                 key={r.id}
                 type="button"
-                onClick={() => selectRealm(r.id)}
+                onClick={() => { selectRealm(r.id); onNavigate?.() }}
                 className={cn(
                   'w-full rounded-lg px-2 py-2 text-left transition',
                   'hover:bg-sidebar-accent',
@@ -173,7 +177,7 @@ export function AppSidebar() {
                   <div key={r.id} className="flex items-center gap-1">
                     <button
                       type="button"
-                      onClick={() => selectRealm(r.id)}
+                      onClick={() => { selectRealm(r.id); onNavigate?.() }}
                       className="min-w-0 flex-1 truncate rounded-lg px-2 py-1.5 text-left text-xs text-muted-foreground hover:bg-sidebar-accent"
                     >
                       {r.name}
@@ -183,7 +187,7 @@ export function AppSidebar() {
                       variant="ghost"
                       className="size-7"
                       title="恢复"
-                      onClick={() => setArchived(r.id, false)}
+                      onClick={() => { setArchived(r.id, false); onNavigate?.() }}
                     >
                       <IconArchiveOff className="size-3.5" />
                     </Button>
@@ -203,7 +207,7 @@ export function AppSidebar() {
                 <button
                   key={item.id}
                   type="button"
-                  onClick={() => setView(item.id)}
+                  onClick={() => { setView(item.id); onNavigate?.() }}
                   className={cn(
                     'flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition hover:bg-sidebar-accent',
                     view === item.id && 'bg-sidebar-accent font-medium',
@@ -237,7 +241,7 @@ export function AppSidebar() {
               <button
                 key={c.id}
                 type="button"
-                onClick={() => applyPublicCase(c.id as PublicCaseId)}
+                onClick={() => { applyPublicCase(c.id as PublicCaseId); onNavigate?.() }}
                 className="w-full rounded-lg px-2 py-1.5 text-left text-xs transition hover:bg-sidebar-accent"
                 title={c.summary}
               >
@@ -285,7 +289,7 @@ export function AppSidebar() {
               更多操作
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-56">
-              <DropdownMenuItem onClick={() => setView('settings')}>
+              <DropdownMenuItem onClick={() => { setView('settings'); onNavigate?.() }}>
                 <IconAdjustments className="size-4" />
                 关于与数据管理
               </DropdownMenuItem>

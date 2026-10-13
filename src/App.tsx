@@ -1,9 +1,10 @@
-import { lazy, Suspense, useEffect } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { IconAlertTriangle, IconCircleCheck, IconInfoCircle, IconX } from '@tabler/icons-react'
 import { AppSidebar } from './components/app-sidebar'
 import { ConfirmDialog } from './components/confirm-dialog'
 import { DialogueView } from './components/dialogue-view'
 import { Topbar } from './components/topbar'
+import { Sheet, SheetContent, SheetTitle } from './components/ui/sheet'
 import { TooltipProvider } from './components/ui/tooltip'
 import { bootStudio, useStudio } from './lib/store'
 import { cn } from './lib/utils'
@@ -21,6 +22,7 @@ const SettingsView = lazy(() => import('./components/settings-view').then((m) =>
 export default function App() {
   const ready = useStudio((s) => s.ready)
   const view = useStudio((s) => s.view)
+  const [navOpen, setNavOpen] = useState(false)
 
   useEffect(() => {
     void bootStudio()
@@ -28,10 +30,26 @@ export default function App() {
 
   return (
     <TooltipProvider>
-      <div className="flex h-dvh w-full overflow-hidden bg-background text-foreground">
-        <AppSidebar />
+      <div className="app-shell flex w-full overflow-hidden bg-background text-foreground">
+        {/*
+          桌面（lg 及以上）常驻侧栏；窄屏收进抽屉。
+          这里用 `hidden lg:block` 的包装层而不是给 aside 加 `hidden`：
+          两个 display 工具类同时命中一个元素时，谁生效取决于生成 CSS 的先后，
+          不可靠；分成两层就没有这个歧义。
+        */}
+        <div className="hidden h-full shrink-0 lg:block">
+          <AppSidebar />
+        </div>
+
+        <Sheet open={navOpen} onOpenChange={setNavOpen}>
+          <SheetContent side="left" className="w-[268px] gap-0 p-0">
+            <SheetTitle className="sr-only">导航</SheetTitle>
+            <AppSidebar onNavigate={() => setNavOpen(false)} />
+          </SheetContent>
+        </Sheet>
+
         <main className="flex min-w-0 flex-1 flex-col">
-          <Topbar />
+          <Topbar onOpenNav={() => setNavOpen(true)} />
           {!ready ? (
             <Splash />
           ) : (
@@ -81,7 +99,7 @@ function ToastStack() {
   const dismiss = useStudio((s) => s.dismissToast)
 
   return (
-    <div className="pointer-events-none fixed top-4 right-4 z-100 flex w-[min(92vw,380px)] flex-col gap-2">
+    <div className="safe-pad pointer-events-none fixed top-4 right-4 z-100 flex w-[min(92vw,380px)] flex-col gap-2">
       {toasts.map((t) => (
         <div
           key={t.id}

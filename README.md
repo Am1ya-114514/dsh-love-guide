@@ -17,6 +17,12 @@ Evidence → Decision → Observation
 - 不想安装也可以自己构建免安装的绿色版，见下面「自己构建」。
 - 系统会提示「未知发布者」：这是没有代码签名证书的开源项目，源码就在本仓库，可自行比对。
 
+**Android 7.0 及以上 → APK 见 [Releases](https://github.com/Am1ya-114514/dsh-love-guide/releases/latest)。**
+
+- 窄屏会自动把左侧栏收进抽屉，右上角汉堡菜单打开。除此之外与桌面版是同一套代码、同一套数据模型。
+- 手机上装完就没有服务器什么事了：API 请求由手机直连你填的那个模型服务商。
+- **导出的 JSON 走系统分享面板**（保存到「文件」或发给别人），而不是桌面版的浏览器下载。
+
 ## 界面
 
 | 模拟对练 | 关系进展 |
@@ -48,11 +54,16 @@ Evidence → Decision → Observation
 pnpm install
 pnpm app:build        # 绿色版 → 输出到仓库上两级的 dsh-Love-Guide\
 pnpm app:installer    # 安装包 → .runtime\installer\
+pnpm android:apk      # Android APK → .runtime\apk\
 ```
 
 `dev` / `build` 之前会自动把 `knowledge/` 下的 43 篇 Markdown 编译成 TS 产物。打包用的 Electron 临时文件与缓存全部落在仓库内的 `.runtime\`，不碰系统临时目录。
 
-换图标：把新图放进 `build/icon-source.webp`，跑 `python build/make-icon.py`（需要 Pillow），一次生成 exe 图标、favicon 与界面里的品牌标记。
+换图标：把新图放进 `build/icon-source.webp`，跑 `python build/make-icon.py`（需要 Pillow），一次生成 exe 图标、favicon 与界面里的品牌标记；`python build/make-android-art.py` 另外把 Android 的 `mipmap-*` 与启动图直接写到 `android/app/src/main/res/`。
+
+打 APK 需要 JDK 21 与 Android SDK（`platforms;android-36`、`build-tools;36.0.0`）。`scripts/make-apk.mjs` 默认去 `F:\android-tools\` 找，也可以用 `GTJS_JDK_HOME` / `ANDROID_HOME` / `GRADLE_USER_HOME` 指到别处。想打 release 包就先按 Capacitor 文档配好签名，再跑 `pnpm android:apk --release`。
+
+不想装这一整套 Android 工具链的话，`.github/workflows/android.yml` 会在 GitHub 的机器上打 debug 包：仓库 Actions 页手动触发，或推一个 `v*` tag，产物在该次运行的 Artifacts 里。
 
 ## 数据与隐私
 
@@ -72,7 +83,7 @@ pnpm app:installer    # 安装包 → .runtime\installer\
 
 ## 技术栈
 
-Vite 8 · React 19 · TypeScript 6 · Tailwind v4 · [shadcn/ui](https://ui.shadcn.com) + [Base UI](https://base-ui.com)（组件源码直接进仓库）· [ECharts 6](https://echarts.apache.org) · Zustand 5 · Dexie 4 · Zod 4 · [Electron 44](https://www.electronjs.org) · [electron-builder](https://www.electron.build) 26。
+Vite 8 · React 19 · TypeScript 6 · Tailwind v4 · [shadcn/ui](https://ui.shadcn.com) + [Base UI](https://base-ui.com)（组件源码直接进仓库）· [ECharts 6](https://echarts.apache.org) · Zustand 5 · Dexie 4 · Zod 4 · [Electron 44](https://www.electronjs.org) · [electron-builder](https://www.electron.build) 26 · [Capacitor 8](https://capacitorjs.com)。
 
 几个值得说明的取舍：
 
@@ -80,6 +91,8 @@ Vite 8 · React 19 · TypeScript 6 · Tailwind v4 · [shadcn/ui](https://ui.shad
 - **不用 react-markdown**：回答渲染自己写了个极简 Markdown → React 元素转换，不做 HTML 透传，反而少一层 XSS 面。
 - **桌面版不用 `file://`**：`file://` 的 origin 是 `null`，IndexedDB 直接不可用。改成主进程内起只读的 `127.0.0.1:41730`（端口固定，因为 IndexedDB 按 origin 隔离，换端口等于换数据库）。
 - **安装界面手写 nsDialogs**：用 electron-builder 的 `customWelcomePage` / `customPageAfterChangeDir` 两个钩子插入欢迎页与「装到哪」确认页，这样能放圆角图标与软件名。
+- **Android 版刻意不开 `CapacitorHttp`**：它把 fetch 劫持到原生栈能绕开 CORS，但会把响应整体缓冲，**流式输出直接失效**。实测 `api.deepseek.com` 对预检请求是回声式放行（连 `https://localhost` 都照放），所以 WebView 原生 fetch 走 CORS 就够了，流式保得住。
+- **Android 图标不用 `@capacitor/assets`**：它依赖 sharp，为一个固定尺寸表引入原生依赖不划算；改成 `build/make-android-art.py` 直接把 `mipmap-*` 写进 res。
 - **人设卡不写性格标签**：抽取提示词只允许写能核对的说话习惯（句子长短、口头禅、高频话题、回复节奏、雷区）并附原文片段，不许写「她比较冷漠」这类没法验证的判断——那种句子一旦进了提示词，AI 就会照着演。
 - **模拟对练不自动发送**：开场白按钮只把文字填进输入框，按不按发送由人决定。
 
@@ -87,14 +100,20 @@ Vite 8 · React 19 · TypeScript 6 · Tailwind v4 · [shadcn/ui](https://ui.shad
 
 ```
 electron/main.cjs          主进程：内置静态服务、便携数据目录、窗口状态、单实例
+capacitor.config.ts        Android 外壳配置（origin、插件、状态栏）
+android/                   Capacitor 生成的 Android 工程（图标与启动图是我们改过的，要入库）
 build/
   installer.nsh            安装界面：欢迎页 + 「装到哪」确认页
-  make-icon.py             从一张源图生成全部图标与品牌图
+  make-icon.py             从一张源图生成桌面端全部图标与品牌图
+  make-android-art.py      同一张源图 → Android 自适应图标、启动图、mipmap-*
 electron-builder.yml       安装包配置（NSIS、非一键、可改安装目录、中文界面）
 scripts/
   build-knowledge.mjs      把 knowledge/ 的 43 篇 Markdown 编译成 TS 产物
   make-portable.mjs        打包免安装绿色版
   make-installer.mjs       打安装包，自带 EPERM rename 竞态自愈重试
+  make-apk.mjs             打 APK：构建 → cap sync → gradle → 收产物
+.github/workflows/
+  android.yml              在 GitHub 机器上打 debug APK（手动触发或推 v* tag）
 knowledge/                 上游参考资料原文（20 篇核心知识 + 23 篇实用材料，MIT）
 src/
   lib/                     检索、模型客户端、指标、聊天解析、数据库、状态、提示词

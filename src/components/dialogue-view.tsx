@@ -35,6 +35,9 @@ export function DialogueView() {
   useEffect(() => {
     const el = scroller.current
     if (!el) return
+    // 空对话里没有「最新一条」可看，贴底只会把标题和引导语顶出屏幕
+    // ——手机宽度下这个空状态比一屏还高，一进来就贴底会看到半截标题。
+    if (messages.length === 0 && !streaming) return
     el.scrollTo({ top: el.scrollHeight, behavior: messages.length > 2 ? 'smooth' : 'auto' })
   }, [messages.length, streaming])
 

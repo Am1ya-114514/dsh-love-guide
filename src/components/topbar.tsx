@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { IconId, IconLock, IconLockOpen, IconSparkles } from '@tabler/icons-react'
+import { IconId, IconLock, IconLockOpen, IconMenu2, IconSparkles } from '@tabler/icons-react'
 import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
 import { selectActiveRealm, useStudio, type WorkspaceView } from '#/lib/store'
@@ -14,7 +14,7 @@ const TITLES: Record<WorkspaceView, { title: string; sub: string }> = {
   settings: { title: '关于与数据', sub: '这个程序做了什么、数据放在哪、怎么带走' },
 }
 
-export function Topbar() {
+export function Topbar({ onOpenNav }: { onOpenNav?: () => void }) {
   const view = useStudio((s) => s.view)
   const realm = useStudio(selectActiveRealm)
   const consentAt = useStudio((s) => s.consentAt)
@@ -25,6 +25,17 @@ export function Topbar() {
 
   return (
     <header className="flex h-14 shrink-0 items-center gap-3 border-b px-4">
+      {onOpenNav && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="-ml-2 lg:hidden"
+          onClick={onOpenNav}
+          aria-label="打开导航"
+        >
+          <IconMenu2 className="size-5" />
+        </Button>
+      )}
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <h1 className="truncate text-sm font-semibold">{meta.title}</h1>

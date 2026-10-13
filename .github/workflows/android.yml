@@ -1,0 +1,68 @@
+# 在 GitHub 的机器上打 Android APK。
+#
+# 为什么要有这个：本仓库的 APK 是本地（Windows + F 盘的 JDK/SDK/Gradle）打出来的，
+# 别人 clone 下来要复现，得自己装一整条 Android 工具链。放到 CI 上之后，
+# 打 tag 或手动触发就能拿到一个可以直接装的包，也不用在本地存几百 MB 的 Gradle 缓存。
+#
+# 触发方式：
+#   - 手动：仓库 Actions 页 → Android APK → Run workflow
+#   - 打 tag：git tag v0.1.1 && git push --tags
+# 产物在对应 run 的 Artifacts 里，保留 30 天。
+
+name: Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: 装依赖
+        run: pnpm install --frozen-lockfile
+
+      # android/ 工程是入库的（含我们改过的图标与启动图），所以这里不需要 `cap add`，
+      # 只要把刚构建出来的 dist/ 同步进去。
+      - name: 构建前端并同步到 android/
+        run: |
+          pnpm build
+          npx cap sync android
+
+      - name: 打 debug APK
+        working-directory: android
+        # 用 `bash gradlew` 而不是 `./gradlew`：仓库在 Windows 上提交，
+        # gradlew 的可执行位不一定被保留，走 bash 就绕开了这个坑。
+        run: bash gradlew assembleDebug --no-daemon --console=plain
+
+      - name: 重命名产物
+        run: |
+          mkdir -p out
+          cp android/app/build/outputs/apk/debug/app-debug.apk \
+             "out/dsh-Love-Guide-${GITHUB_REF_NAME//\//-}-debug.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dsh-Love-Guide-apk
+          path: out/*.apk
+          retention-days: 30
