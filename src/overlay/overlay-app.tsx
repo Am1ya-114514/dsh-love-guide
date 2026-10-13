@@ -21,7 +21,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { complete, type ChatTurn } from '#/lib/ai'
 import { getSetting } from '#/lib/db'
-import { IconChevronDown, IconX } from '@tabler/icons-react'
+import { IconChevronDown, IconRefresh, IconSettings, IconX } from '@tabler/icons-react'
 import brand from '#/assets/brand.png'
 import { AI_KEY, DEFAULT_AI } from '#/lib/ai-defaults'
 import { CORE_PERSONA, HARD_BOUNDARIES, personaBlock } from '#/lib/prompt'
@@ -75,6 +75,7 @@ declare global {
       inject: (hwnd: number, text: string) => Promise<{ ok: boolean; filled: number; sent: boolean }>
       setCollapsed: (collapsed: boolean) => Promise<boolean>
       hide: () => Promise<boolean>
+      openSettings: () => Promise<boolean>
       hotkey: () => Promise<string>
       onEvent: (handler: (payload: Record<string, unknown>) => void) => () => void
     }
@@ -158,6 +159,25 @@ export function OverlayApp() {
   const pushLog = useCallback((line: string) => {
     setLog((prev) => [...prev.slice(-40), `${new Date().toLocaleTimeString()} ${line}`])
   }, [])
+
+  // 模型连接存在主窗口的 IndexedDB 里，这个窗口只是同一 origin 下的另一个读者。
+  // 用户在主窗口改完设置再回来，得能手动刷新一次——否则会拿着旧配置一直报错。
+  const reloadSettings = useCallback(async () => {
+    const s = await getSetting<AiSettings>(AI_KEY, DEFAULT_AI)
+    setSettings(s)
+    return s
+  }, [])
+
+  const refreshWindows = useCallback(async () => {
+    if (!api) return
+    try {
+      const list = await api.listWindows()
+      setWins(list)
+      pushLog(`窗口列表已刷新 · ${list.length} 项`)
+    } catch (e) {
+      setError(`拿不到窗口列表：${(e as Error).message}`)
+    }
+  }, [api, pushLog])
 
   useEffect(() => {
     if (!api || bootstrapped.current) return
@@ -313,6 +333,25 @@ export function OverlayApp() {
         <span className="ov-dot" data-on={status?.ready ? '1' : '0'} />
         <strong>实时建议</strong>
         <span className="ov-spacer" />
+        <button
+          className="ov-mini"
+          onClick={() => {
+            void refreshWindows()
+            void reloadSettings()
+          }}
+          title="刷新窗口列表与设置"
+          aria-label="刷新窗口列表与设置"
+        >
+          <IconRefresh size={14} stroke={2} />
+        </button>
+        <button
+          className="ov-mini"
+          onClick={() => void api.openSettings()}
+          title="打开设置（模型连接、人格）"
+          aria-label="打开设置"
+        >
+          <IconSettings size={14} stroke={2} />
+        </button>
         <button className="ov-mini" onClick={() => void toggleCollapsed()} title="收起" aria-label="收起">
           <IconChevronDown size={14} stroke={2} />
         </button>
@@ -437,8 +476,15 @@ export function OverlayApp() {
       )}
 
       <footer className="ov-foot">
-        {status?.ready ? '后端就绪' : '后端未就绪'} · 收起/展开 <kbd>Ctrl</kbd>+
-        <kbd>Shift</kbd>+<kbd>L</kbd> · 只填不发
+        {status?.ready ? '后端就绪' : '后端未就绪'} ·{' '}
+        {settings?.apiKey ? (
+          settings.model || '已配置'
+        ) : (
+          <button className="ov-link" onClick={() => void api.openSettings()}>
+            还没配模型，点这里去设置
+          </button>
+        )}{' '}
+        · 收起/展开 <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>L</kbd> · 只填不发
       </footer>
     </div>
   )

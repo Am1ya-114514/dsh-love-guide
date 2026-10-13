@@ -22,11 +22,22 @@ const SettingsView = lazy(() => import('./components/settings-view').then((m) =>
 export default function App() {
   const ready = useStudio((s) => s.ready)
   const view = useStudio((s) => s.view)
+  const setView = useStudio((s) => s.setView)
   const [navOpen, setNavOpen] = useState(false)
 
   useEffect(() => {
     void bootStudio()
   }, [])
+
+  // 悬浮窗上点「设置」时，主进程会把主窗口唤到前台并推一个目标视图过来。
+  // 设置页是模型连接、人格、数据边界的唯一入口，悬浮窗不再复制一套。
+  useEffect(() => {
+    const bridge = window.studioAPI
+    if (!bridge?.onGoto) return
+    return bridge.onGoto((target) => {
+      if (target === 'settings') setView('settings')
+    })
+  }, [setView])
 
   return (
     <TooltipProvider>

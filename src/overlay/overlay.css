@@ -388,3 +388,15 @@ body,
   padding: 0 3px;
   margin: 0 1px;
 }
+
+/* 页脚里那句「还没配模型」本身就是一个去设置的入口：把死文字变成按钮，
+   用户不用回头找设置在哪。 */
+.ov-link {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--ov-accent);
+  text-decoration: underline;
+  cursor: pointer;
+}

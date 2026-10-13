@@ -330,6 +330,35 @@ function setOverlayCollapsed(collapsed) {
 }
 
 function registerOverlayIpc() {
+  // 模型连接存在浏览器 IndexedDB 里，外面的进程读不到。渲染进程每次保存设置
+  // 都会顺手把这份设置送过来，落成一个 JSON 放在数据目录里，供「实时建议」
+  // 那个独立进程读取。**API Key 明文落盘**——它和浏览器里那份是同一个信任级别
+  // （同一台机器、同一个用户目录），但文件权限收成 0600。
+  ipcMain.handle('ai:sync', (_e, payload) => {
+    try {
+      const dir = resolveDataDir()
+      fs.mkdirSync(dir, { recursive: true })
+      const file = path.join(dir, 'model.json')
+      const data = {
+        provider: String(payload?.provider ?? ''),
+        endpoint: String(payload?.endpoint ?? ''),
+        model: String(payload?.model ?? ''),
+        apiKey: String(payload?.apiKey ?? ''),
+        temperature: Number(payload?.temperature ?? 0.6),
+        guardMode: payload?.guardMode === 'research' ? 'research' : 'general',
+        updatedAt: new Date().toISOString(),
+      }
+      // 先写临时文件再 rename，避免另一个进程读到写了一半的 JSON
+      const tmp = `${file}.tmp`
+      fs.writeFileSync(tmp, JSON.stringify(data, null, 2), { encoding: 'utf8', mode: 0o600 })
+      fs.renameSync(tmp, file)
+      return { ok: true, file }
+    } catch (err) {
+      console.error(`[main] [ai:sync] 写 model.json 失败: ${err?.message ?? err}`)
+      return { ok: false, error: String(err?.message ?? err) }
+    }
+  })
+
   ipcMain.handle('overlay:status', () => ({
     ...sidecar.describe(),
     collapsed: overlayCollapsed,
@@ -376,6 +405,18 @@ function registerOverlayIpc() {
     if (!overlayWin || overlayWin.isDestroyed()) return false
     overlayWin.show()
     overlayWin.focus()
+    return true
+  })
+
+  // 悬浮窗上的「设置」按钮。模型连接存在主窗口的 IndexedDB 里，悬浮窗自己没法改，
+  // 所以这里把主窗口唤到前台并让它切到设置页——而不是在悬浮窗里再复制一套设置界面。
+  ipcMain.handle('studio:open-settings', () => {
+    const win = BrowserWindow.getAllWindows().find((w) => w !== overlayWin)
+    if (!win || win.isDestroyed()) return false
+    if (win.isMinimized()) win.restore()
+    win.show()
+    win.focus()
+    win.webContents.send('studio:goto', 'settings')
     return true
   })
 }

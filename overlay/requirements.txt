@@ -1,18 +1,19 @@
 # 悬浮窗后端依赖（Windows）
 #
 #   python -m venv .venv
-#   .venv\Scripts\python -m pip install -r overlay/requirements.txt --ignore-requires-python
+#   .venv\Scripts\python -m pip install -r overlay/requirements.txt
 #
-# 关于 --ignore-requires-python：
-#   rapidocr-onnxruntime 在 PyPI 上把 Requires-Python 写成 >=3.6,<3.13，但它是
-#   纯 Python 包 + onnxruntime，实测在 Python 3.13 上跑得很好（本机 3.13.12 +
-#   rapidocr 1.2.3，聊天正文识别置信度 0.91~0.94）。不加这个参数 pip 会直接拒绝，
-#   报一堆 "Ignored the following versions that require a different python version"。
-#   不想用这个参数就用 Python 3.12 建虚拟环境——那是上游声明的支持范围。
+# 用 Python 3.10 / 3.11 / 3.12 建虚拟环境（本机用的是 D:\Python\python.exe = 3.10.8）。
+#
+# 关于版本选择：
+#   rapidocr-onnxruntime 在 PyPI 上把 Requires-Python 写成 >=3.6,<3.13，1.4.x 是真的
+#   用不上 3.13。1.2.3 虽然在 3.13 上能跑，但它的参数名是 det_limit_side_len /
+#   limit_type，没有 det_limit_type=max 这条高分辨率检测路径——换成 1.4.4 之后同一
+#   张 QQ 截图（1649x1084）识别耗时从 5.7s 掉到 1.2s。所以钉 3.10 + 1.4.4。
 #
 # win_io.py / chat_reader.py / service.py 是悬浮窗的全部后端代码：
 # 窗口枚举与截图、OCR 读数、把建议回复填进目标输入框（只填不发）。
-rapidocr-onnxruntime==1.2.3
+rapidocr-onnxruntime==1.4.4
 pywin32>=306
 numpy
 pillow

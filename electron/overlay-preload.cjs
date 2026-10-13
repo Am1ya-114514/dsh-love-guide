@@ -25,6 +25,8 @@ contextBridge.exposeInMainWorld('overlayAPI', {
   /** 收起成一个小条 / 展开。 */
   setCollapsed: (collapsed) => ipcRenderer.invoke('overlay:set-collapsed', { collapsed }),
   hide: () => ipcRenderer.invoke('overlay:hide'),
+  /** 把主窗口唤到前台并切到设置页——模型连接不在这个窗口里。 */
+  openSettings: () => ipcRenderer.invoke('studio:open-settings'),
   /** 快捷键用的当前值，界面上要显示出来。 */
   hotkey: () => ipcRenderer.invoke('overlay:hotkey'),
 

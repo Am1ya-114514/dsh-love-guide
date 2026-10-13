@@ -21,6 +21,7 @@ import {
   simSystemPrompt,
 } from './prompt'
 import { PROVIDER_MAP } from './providers'
+import { studioBridge } from './studio-bridge'
 import { formatDateTime, toDateKey, uid } from './utils'
 import type {
   ActionCard,
@@ -407,6 +408,17 @@ export const useStudio = create<StudioState>((set, get) => ({
     const ai = { ...get().ai, ...patch }
     await db.putSetting(AI_KEY, ai)
     set({ ai })
+    // 顺带把这份设置写一份 JSON 到数据目录：模型连接存在 IndexedDB 里，
+    // 「实时建议」那个独立进程读不到。桌面版才有这层桥，网页版静默跳过。
+    void studioBridge()
+      ?.syncAiSettings({
+        provider: ai.providerId,
+        endpoint: ai.baseUrl,
+        model: ai.model,
+        apiKey: ai.apiKey,
+        temperature: ai.temperature,
+      })
+      .catch(() => {})
   },
 
   async setConsent(on) {
